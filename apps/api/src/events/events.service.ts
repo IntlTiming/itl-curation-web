@@ -32,6 +32,14 @@ export class EventsService {
     });
   }
 
+  async isEventAdmin(user: User, eventId: string): Promise<boolean> {
+    if (user.isGlobalAdmin) return true;
+    const role = await this.prisma.eventRole.findFirst({
+      where: { eventId, userId: user.id, role: 'ADMIN' },
+    });
+    return role !== null;
+  }
+
   async isSlugAvailable(slug: string): Promise<boolean> {
     const existing = await this.prisma.event.findUnique({ where: { slug } });
     return existing === null;

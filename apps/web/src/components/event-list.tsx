@@ -57,7 +57,7 @@ export function EventList({ user }: { user: AuthUser }) {
             to={`/events/${event.slug}`}
             className="focus-visible:ring-ring/50 block rounded-xl outline-none focus-visible:ring-3"
           >
-            <Card className="hover:bg-muted hover:shadow-md transition-all">
+            <Card className="hover:bg-muted transition-all hover:shadow-md">
               <CardHeader>
                 <CardTitle>{event.name}</CardTitle>
                 <CardDescription>

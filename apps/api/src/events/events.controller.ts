@@ -46,6 +46,7 @@ export class EventsController {
     if (!event) {
       throw new NotFoundException(`No event with slug "${slug}"`);
     }
-    return event;
+    const isEventAdmin = await this.events.isEventAdmin(user, event.id);
+    return { ...event, isEventAdmin };
   }
 }
