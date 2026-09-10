@@ -41,12 +41,15 @@ model User {
 }
 
 model Event {
-  id        String    @id @default(cuid())
-  slug      String    @unique // "itl-online-2027"
-  name      String
-  date      DateTime? // mutable, user-editable; ordering only - carries no behaviour
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  slug       String    @unique // "itl-online-2027"
+  name       String
+  date       DateTime? // mutable, user-editable; ordering only - carries no behaviour
+  archivedAt DateTime? // soft delete - null = active. Dependent tables (Submission, Review, ...)
+  // have no soft-delete column of their own; their archived status is inferred by
+  // walking up to this field, since nothing lets a row survive independently of its event.
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   roles                   EventRole[]
   submissions             Submission[]
@@ -54,6 +57,7 @@ model Event {
   disqualificationReasons DisqualificationReason[]
 
   @@index([date])
+  @@index([archivedAt])
   @@map("events")
 }
 
