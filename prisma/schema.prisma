@@ -1,0 +1,402 @@
+// ITL Curation Web - chart submission review across ITL Online seasons.
+//
+// Identity model: a submission is keyed by its Google Drive fileId, which is stable
+// across chart revisions. Chart data (title, meter, hash, ...) lives on a nullable 1:1
+// Chart row per submission - no version history is kept, since the only thing that
+// matters is whether the chart changed since it was last reviewed, not what changed.
+// Chart is mutated in place when a re-parse detects a new hash (e.g. after a stepartist
+// resync). Anything that records an opinion (Review, Disqualification) snapshots the
+// chart hash it was made about, so staleness is:
+//   review.chartHash != submission.chart?.hash
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+model User {
+  id                String    @id @default(cuid())
+  discordId         String    @unique
+  discordUsername   String
+  discordAvatarHash String?
+  displayName       String? // user-editable override for discordUsername in UI; null = fall back to discordUsername
+  isGlobalAdmin     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  lastLoginAt       DateTime?
+
+  eventRoles        EventRole[]
+  reviews           Review[]
+  reviewRevisions   ReviewRevision[]
+  disqualifications Disqualification[]
+
+  @@map("users")
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  slug      String    @unique // "itl-online-2027"
+  name      String
+  date      DateTime? // mutable, user-editable; ordering only - carries no behaviour
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  roles                   EventRole[]
+  submissions             Submission[]
+  basicCheckReasons       BasicCheckReason[]
+  disqualificationReasons DisqualificationReason[]
+
+  @@index([date])
+  @@map("events")
+}
+
+enum EventRoleType {
+  REVIEWER
+  ADMIN
+}
+
+// A reviewer sees an event only if they hold a role on it. The one bypass is
+// User.isGlobalAdmin - keep that OR in a single authorization helper rather than
+// rewriting it at each call site.
+model EventRole {
+  id        String        @id @default(cuid())
+  eventId   String
+  userId    String
+  role      EventRoleType
+  grantedAt DateTime      @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId, role])
+  @@index([userId])
+  @@map("event_roles")
+}
+
+// ---------------------------------------------------------------------------
+// Submissions & chart revisions
+// ---------------------------------------------------------------------------
+
+enum Playstyle {
+  SINGLE
+  DOUBLE
+}
+
+enum Difficulty {
+  BEGINNER
+  EASY
+  MEDIUM
+  HARD
+  CHALLENGE // the submission form labels this "Expert"; simfile calls it Challenge
+}
+
+enum CmodPreference {
+  CMOD_OKAY
+  NO_CMOD
+  NOT_STEPARTIST // "I am not the stepartist for this chart"
+}
+
+enum ConsentToPublicReview {
+  CONSENTS // "Yes, I consent to my chart being reviewed in public"
+  DOES_NOT_CONSENT // "No, I do NOT consent to my chart being reviewed in public"
+  NOT_STEPARTIST // "I am not the stepartist for this chart" - same pattern as CmodPreference.NOT_STEPARTIST
+}
+
+model Submission {
+  fileId                String                 @id // Google Drive file id - stable across revisions
+  eventId               String
+  submitter             String // raw "Submitter Discord ID" text from the form - unauthenticated, not an FK; no OAuth flow ties a submission to a verified User
+  stepartist            String
+  pack                  String
+  playstyle             Playstyle
+  difficulty            Difficulty
+  focus                 String // raw form value; option list changes between seasons
+  derivedFocus          String // computed bucket: "No Tech", "No Tech - Other", "Single Tech - <label>", "Single Tech - Other", "Multi Tech", "Other" - a total function of focus/techTags, always populated regardless of processingError
+  cmodPreference        CmodPreference
+  releaseYear           String // free-text release year from the form, e.g. "2026" - "" when left blank; not Int since the source isn't guaranteed to be a clean year
+  theme                 String // "" when left blank on the form
+  additionalNotes       String // "" when left blank on the form
+  consentToPublicReview ConsentToPublicReview? // null = left unanswered on the form
+  fileUrl               String
+  driveMd5              String // Drive checksum - how the pipeline detects a revised upload. The form enforces a file upload, so this is always fetched from Drive even when processingError is set
+  processingError       String? // null = pipeline's "Success"; non-null = the pipeline's raw "Error: <message>" text. A submission still gets a row when this is set, so curators have visibility into failures instead of a silent drop
+  songDir               String? // downloaded/extracted directory relative to Songs-Submissions/, e.g. "Single/MIRROR [fileId]" - null alongside a processingError, since it depends on the pipeline's download/extraction step succeeding. Known before chart parsing ever runs, so it lives here rather than on the nullable Chart row
+  bannerSlug            String // md5(salt + fileId) hex digest, used to locate banner images; always populated since fileId is always defined
+  isInternal            Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  event             Event               @relation(fields: [eventId], references: [id])
+  chart             Chart?
+  techTags          SubmissionTechTag[]
+  singleTechTagId   String?
+  singleTechTag     TechTag?            @relation("SubmissionSingleTechFocus", fields: [singleTechTagId], references: [id])
+  reviews           Review[]
+  disqualifications Disqualification[]
+
+  @@index([eventId])
+  @@map("submissions")
+}
+
+// One nullable row per submission - no version history (see file header). Mutated in
+// place when a re-parse detects a hash change. Null means parsing hasn't succeeded
+// (yet, or at all) - the identity/metadata fields (hash, title, ..., meter) and the
+// "always populated" pattern-analytics fields below populate together or not at all,
+// never partially. The one exception is the nullable pattern-count fields near the
+// bottom, which can be individually null even on an otherwise fully-populated row -
+// see the comment above them.
+model Chart {
+  id             String     @id @default(cuid())
+  submissionId   String     @unique
+  hash           String // NOT globally unique - the same chart can arrive via two submissions
+  title          String
+  titleRomaji    String // "" when the simfile has no translit tag
+  subtitle       String // "" when the simfile has no subtitle
+  subtitleRomaji String // "" when the simfile has no translit tag
+  artist         String
+  artistRomaji   String // "" when the simfile has no translit tag
+  playstyle      Playstyle // parsed from the chart file itself - can differ from Submission.playstyle (submitter-claimed); lets the app surface submitted-vs-actual mismatches
+  difficulty     Difficulty // same idea as playstyle - parsed, not claimed
+  meter          Int
+  minBpm         Int
+  maxBpm         Int
+  totalSteps     Int
+  totalRolls     Int
+  totalHolds     Int
+  totalMines     Int
+
+  // Measured pattern analytics (the 2026 "GOGS" tab). Computed by the techcount engine,
+  // baked into itl-online-2027-pack's main.py (scripts/chart_metadata.py, run via the
+  // "Generate chart metadata" menu choice) - implemented here now, superseding the
+  // earlier "out of scope until release/pointing phase" note.
+  totalJumps                  Int
+  lengthSeconds               Int
+  totalMeasures               Int
+  totalBreakMeasures          Int
+  totalStreamMeasures         Int
+  totalTrueStreamMeasures     Int
+  weightedNps                 Int // stored as thousandths - assume at most 3 decimal places (e.g. 8667 = 8.667); business logic scales on read/write
+  hasSignificantTimingChanges Boolean
+  // ^ ported from ITGmania's Steps::HasSignificantTimingChanges() (stops/delays/warps/
+  // speed-or-scroll changes, or >3 BPM display-range spread). An ENGINE-level
+  // pattern-analysis flag, NOT a curation decision - distinct from the Disqualification
+  // model below, which records a reviewer's DQ ruling. A chart can be true here with
+  // zero Disqualification rows, or the reverse. (The source pipeline's JSON field is
+  // misleadingly named "disqualified" - renamed here to avoid confusion with the
+  // Disqualification model.)
+
+  // Nullable: None only if the foot-placement parity solver fails to converge for this
+  // chart (the pipeline's compute_chart_stats catches this internally - the rest of the
+  // row still populates normally). The engine's own docs also list non-dance-single/
+  // dance-double charts as a null case, but that's unreachable here - this pipeline only
+  // ever deals with "dance" charts, and chart_metadata.py only ever selects a chart
+  // matching the submission's own single/double playstyle. Not observed in practice yet
+  // (100% populated across every sampled chart, singles and doubles) but kept nullable
+  // since the code path is real.
+  bracketCount        Int?
+  halfCrossoverCount  Int?
+  fullCrossoverCount  Int?
+  crossoverCount      Int?
+  downFootswitchCount Int?
+  upFootswitchCount   Int?
+  footswitchCount     Int?
+  doublestepCount     Int?
+  jackCount           Int?
+  sideswitchCount     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submission Submission @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+
+  @@index([hash])
+  @@map("charts")
+}
+
+enum TechCategory {
+  BXF
+  TECH
+  NOTECH
+}
+
+// Replaces the 18 flat has_* columns the spreadsheet needed for filtering.
+model TechTag {
+  id       String       @id @default(cuid())
+  code     String       @unique // "BR", "XO", "FS"
+  label    String       @unique // "Brackets (includes Bracket Taps)" - the stable external key from the form; import script looks tech tags up by this, not by code
+  category TechCategory
+
+  submissions                  SubmissionTechTag[]
+  submissionsAsSingleTechFocus Submission[]        @relation("SubmissionSingleTechFocus")
+
+  @@map("tech_tags")
+}
+
+// Submitter-claimed tech, from the form. Distinct from measured pattern counts.
+model SubmissionTechTag {
+  submissionId String
+  techTagId    String
+
+  submission Submission @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  techTag    TechTag    @relation(fields: [techTagId], references: [id])
+
+  @@id([submissionId, techTagId])
+  @@map("submission_tech_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Review
+// ---------------------------------------------------------------------------
+
+// Reviewers invent new failure classes mid-season ("Beat 0", "Profanity",
+// "Used before"), so these are rows, not an enum. eventId null = global.
+model BasicCheckReason {
+  id       String  @id @default(cuid())
+  code     String
+  label    String
+  eventId  String?
+  isActive Boolean @default(true)
+
+  event                     Event?                     @relation(fields: [eventId], references: [id])
+  reviewBasicChecks         ReviewBasicCheck[]
+  reviewRevisionBasicChecks ReviewRevisionBasicCheck[]
+
+  @@unique([eventId, code])
+  @@map("basic_check_reasons")
+}
+
+model Review {
+  id             String   @id @default(cuid())
+  submissionId   String
+  reviewerId     String
+  chartHash      String // snapshot: which chart hash this opinion is about
+  rating         Int? // stored as hundredths - assume at most 2 decimal places (e.g. 150 = 1.50); business logic scales on read/write
+  passing        Int?
+  scoring        Int?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Deliberately no constraint tying passing/scoring to basicCheckReasons:
+  // reviewers sometimes score a chart that failed a basic check and sometimes
+  // leave it blank. It's discretion, not a rule - enforce in the UI, not the DB.
+
+  // chartHash is a plain snapshot, not an FK - Chart has no version history to point
+  // at (see file header). Staleness: review.chartHash != submission.chart?.hash.
+
+  submission        Submission         @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  reviewer          User               @relation(fields: [reviewerId], references: [id])
+  basicCheckReasons ReviewBasicCheck[] // empty = passed basic checks; a review can carry more than one flag
+  revisions         ReviewRevision[]
+
+  @@unique([submissionId, reviewerId]) // one live review per reviewer per submission
+  @@index([submissionId])
+  @@index([reviewerId])
+  @@index([chartHash])
+  @@map("reviews")
+}
+
+// Join table for Review <-> BasicCheckReason, since a review can carry more
+// than one flag (e.g. both "Beat 0" and "Used before").
+model ReviewBasicCheck {
+  reviewId           String
+  basicCheckReasonId String
+
+  review           Review           @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  basicCheckReason BasicCheckReason @relation(fields: [basicCheckReasonId], references: [id])
+
+  @@id([reviewId, basicCheckReasonId])
+  @@map("review_basic_checks")
+}
+
+// Append-only. Written on every update to Review, preserving the
+// (chart hash, score) pairing the in-place update would otherwise destroy.
+model ReviewRevision {
+  id             String   @id @default(cuid())
+  reviewId       String
+  chartHash      String // hash the superseded opinion was about
+  rating         Int? // stored as hundredths, same convention as Review.rating
+  passing        Int?
+  scoring        Int?
+  notes          String?
+  supersededAt   DateTime @default(now())
+  supersededById String
+
+  review            Review                     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  supersededBy      User                       @relation(fields: [supersededById], references: [id])
+  basicCheckReasons ReviewRevisionBasicCheck[]
+
+  @@index([reviewId])
+  @@index([chartHash])
+  @@map("review_revisions")
+}
+
+// Mirrors ReviewBasicCheck, snapshotted per revision - a superseded review's
+// full set of flags would otherwise be lost, the same reason ReviewRevision
+// exists at all.
+model ReviewRevisionBasicCheck {
+  reviewRevisionId   String
+  basicCheckReasonId String
+
+  reviewRevision   ReviewRevision   @relation(fields: [reviewRevisionId], references: [id], onDelete: Cascade)
+  basicCheckReason BasicCheckReason @relation(fields: [basicCheckReasonId], references: [id])
+
+  @@id([reviewRevisionId, basicCheckReasonId])
+  @@map("review_revision_basic_checks")
+}
+
+// ---------------------------------------------------------------------------
+// Disqualification
+// ---------------------------------------------------------------------------
+
+model DisqualificationReason {
+  id       String  @id @default(cuid())
+  code     String // "unauthorized"
+  label    String
+  eventId  String?
+  isActive Boolean @default(true)
+
+  event             Event?             @relation(fields: [eventId], references: [id])
+  disqualifications Disqualification[]
+
+  @@unique([eventId, code])
+  @@map("disqualification_reasons")
+}
+
+enum DisqualificationStatus {
+  ACTIVE
+  POSSIBLY_RESOLVED // submission.chart?.hash no longer matches the hash this DQ was raised against
+  CLEARED
+}
+
+// A DQ is chart-level, not per-reviewer: in the 2026 sheet one reviewer's DQ
+// propagated into every other reviewer's row by formula. Here it's stored once
+// and every review of that submission can surface it.
+model Disqualification {
+  id               String                 @id @default(cuid())
+  submissionId     String
+  chartHash        String // snapshot at DQ time - plain string, not an FK (see Review.chartHash)
+  reasonId         String
+  notes            String?
+  disqualifiedById String
+  status           DisqualificationStatus @default(ACTIVE)
+  createdAt        DateTime               @default(now())
+  resolvedAt       DateTime?
+
+  submission     Submission             @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  reason         DisqualificationReason @relation(fields: [reasonId], references: [id])
+  disqualifiedBy User                   @relation(fields: [disqualifiedById], references: [id])
+
+  // No unique constraint - multiple reviewers can DQ the same submission for
+  // different reasons.
+  @@index([submissionId, status])
+  @@index([chartHash])
+  @@map("disqualifications")
+}
