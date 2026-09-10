@@ -1,17 +1,17 @@
-import { Route, Routes } from 'react-router'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AppBreadcrumb } from '@/components/app-breadcrumb'
-import { EventDetail } from '@/components/event-detail'
-import { EventList } from '@/components/event-list'
-import { Loading } from '@/components/loading'
-import { ModeToggle } from '@/components/mode-toggle'
-import { UserMenu } from '@/components/user-menu'
-import { useAuth } from '@/hooks/use-auth'
-import { BreadcrumbProvider } from '@/hooks/use-breadcrumb'
+import { Route, Routes } from 'react-router';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AppBreadcrumb } from '@/components/app-breadcrumb';
+import { EventDetail } from '@/components/event-detail';
+import { EventList } from '@/components/event-list';
+import { Loading } from '@/components/loading';
+import { ModeToggle } from '@/components/mode-toggle';
+import { UserMenu } from '@/components/user-menu';
+import { useAuth } from '@/hooks/use-auth';
+import { BreadcrumbProvider } from '@/hooks/use-breadcrumb';
 
 function App() {
-  const auth = useAuth()
+  const auth = useAuth();
 
   return (
     <BreadcrumbProvider>
@@ -31,9 +31,7 @@ function App() {
             <Card className="w-full max-w-sm">
               <CardHeader>
                 <CardTitle>Sign in</CardTitle>
-                <CardDescription>
-                  Use your Discord account to access ITL Curation.
-                </CardDescription>
+                <CardDescription>Use your Discord account to access ITL Curation.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild className="w-full">
@@ -52,7 +50,7 @@ function App() {
         </main>
       </div>
     </BreadcrumbProvider>
-  )
+  );
 }
 
-export default App
+export default App;

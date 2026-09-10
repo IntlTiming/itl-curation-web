@@ -24,12 +24,12 @@ The API listens on `http://localhost:3000`, the web app on `http://localhost:517
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Run the API and web app together, with reload |
-| `npm run build` | Build both apps |
-| `npm run format` | Format the whole repo with Prettier |
-| `npm run format:check` | Check formatting without writing |
-| `npm run db:migrate` | Run Prisma migrations |
-| `npm run db:generate` | Regenerate the Prisma client |
-| `npm run db:studio` | Open Prisma Studio |
+| Command                | Description                                   |
+| ---------------------- | --------------------------------------------- |
+| `npm run dev`          | Run the API and web app together, with reload |
+| `npm run build`        | Build both apps                               |
+| `npm run format`       | Format the whole repo with Prettier           |
+| `npm run format:check` | Check formatting without writing              |
+| `npm run db:migrate`   | Run Prisma migrations                         |
+| `npm run db:generate`  | Regenerate the Prisma client                  |
+| `npm run db:studio`    | Open Prisma Studio                            |

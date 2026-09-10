@@ -9,13 +9,13 @@
       // Applied before React mounts so there's no flash of the wrong theme
       // on load. Keep storageKey in sync with theme-provider.tsx.
       (function () {
-        var storageKey = 'itl-curation-theme'
-        var theme = localStorage.getItem(storageKey) || 'dark'
+        var storageKey = 'itl-curation-theme';
+        var theme = localStorage.getItem(storageKey) || 'dark';
         if (theme === 'system') {
-          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
-        document.documentElement.classList.add(theme)
-      })()
+        document.documentElement.classList.add(theme);
+      })();
     </script>
   </head>
   <body>

@@ -1,23 +1,23 @@
-import { Link } from 'react-router'
-import { CreateEventDialog } from '@/components/create-event-dialog'
-import { Loading } from '@/components/loading'
-import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import type { AuthUser } from '@/hooks/use-auth'
-import { useEvents } from '@/hooks/use-events'
+import { Link } from 'react-router';
+import { CreateEventDialog } from '@/components/create-event-dialog';
+import { Loading } from '@/components/loading';
+import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import type { AuthUser } from '@/hooks/use-auth';
+import { useEvents } from '@/hooks/use-events';
 
 export function EventList({ user }: { user: AuthUser }) {
-  const events = useEvents()
+  const events = useEvents();
 
   if (events.status === 'loading') {
-    return <Loading message="Loading events…" />
+    return <Loading message="Loading events…" />;
   }
 
   if (events.status === 'error') {
-    return <p className="text-sm text-destructive">Couldn't load events. Try refreshing.</p>
+    return <p className="text-destructive text-sm">Couldn't load events. Try refreshing.</p>;
   }
 
-  const { events: list, refetch } = events
+  const { events: list, refetch } = events;
 
   if (list.length === 0) {
     return (
@@ -39,7 +39,7 @@ export function EventList({ user }: { user: AuthUser }) {
           </CardFooter>
         )}
       </Card>
-    )
+    );
   }
 
   return (
@@ -55,9 +55,9 @@ export function EventList({ user }: { user: AuthUser }) {
           <Link
             key={event.id}
             to={`/events/${event.slug}`}
-            className="block rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="focus-visible:ring-ring/50 block rounded-xl outline-none focus-visible:ring-3"
           >
-            <Card className="transition-colors hover:bg-muted/50">
+            <Card className="hover:bg-muted/50 transition-colors">
               <CardHeader>
                 <CardTitle>{event.name}</CardTitle>
                 <CardDescription>
@@ -71,5 +71,5 @@ export function EventList({ user }: { user: AuthUser }) {
         ))}
       </div>
     </div>
-  )
+  );
 }
