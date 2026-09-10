@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -19,6 +20,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
       exclude: ['/api/(.*)'],
     }),
     PrismaModule,
+    AuthModule,
   ],
   controllers: [HealthController],
 })

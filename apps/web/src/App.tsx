@@ -1,32 +1,50 @@
-import { useEffect, useState } from 'react'
-
-type HealthResponse = {
-  status: string
-  db: boolean
-}
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ModeToggle } from '@/components/mode-toggle'
+import { UserMenu } from '@/components/user-menu'
+import { useAuth } from '@/hooks/use-auth'
 
 function App() {
-  const [health, setHealth] = useState<HealthResponse | 'loading' | 'error'>('loading')
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data: HealthResponse) => setHealth(data))
-      .catch(() => setHealth('error'))
-  }, [])
+  const auth = useAuth()
 
   return (
-    <main style={{ fontFamily: 'sans-serif', padding: '2rem' }}>
-      <h1>ITL Curation Web</h1>
-      <p>
-        API health:{' '}
-        {health === 'loading'
-          ? 'checking…'
-          : health === 'error'
-            ? 'unreachable'
-            : `${health.status} (db: ${health.db ? 'connected' : 'unreachable'})`}
-      </p>
-    </main>
+    <div className="flex min-h-svh flex-col">
+      <header className="flex items-center justify-between border-b px-6 py-4">
+        <span className="font-semibold">ITL Curation</span>
+        <div className="flex items-center gap-2">
+          <ModeToggle />
+          {auth.status === 'authenticated' && <UserMenu user={auth.user} />}
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center p-6">
+        {auth.status === 'loading' && (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        )}
+
+        {auth.status === 'unauthenticated' && (
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <CardTitle>Sign in</CardTitle>
+              <CardDescription>
+                Use your Discord account to access ITL Curation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <a href="/api/auth/discord">Sign in with Discord</a>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {auth.status === 'authenticated' && (
+          <p className="text-sm text-muted-foreground">
+            Signed in as {auth.user.displayName ?? auth.user.discordUsername}.
+          </p>
+        )}
+      </main>
+    </div>
   )
 }
 
