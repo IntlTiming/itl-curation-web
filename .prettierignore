@@ -1,0 +1,3 @@
+apps/web/src/components/ui/**
+apps/web/dist
+apps/api/dist
