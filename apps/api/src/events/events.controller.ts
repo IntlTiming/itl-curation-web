@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import type { User } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
@@ -28,5 +28,15 @@ export class EventsController {
   @UseGuards(GlobalAdminGuard)
   create(@Body() dto: CreateEventDto) {
     return this.events.create(dto);
+  }
+
+  // Registered after the static 'check-slug' route so it doesn't swallow it.
+  @Get(':slug')
+  async getBySlug(@Param('slug') slug: string, @CurrentUser() user: User) {
+    const event = await this.events.findAccessibleBySlug(user, slug);
+    if (!event) {
+      throw new NotFoundException(`No event with slug "${slug}"`);
+    }
+    return event;
   }
 }

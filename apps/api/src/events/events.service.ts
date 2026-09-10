@@ -12,13 +12,23 @@ export class EventsService {
   // everyone else sees only events they hold an EventRole on. This is the
   // single `isGlobalAdmin OR exists(EventRole ...)` helper REQUIREMENTS.md
   // calls for - don't re-derive this check at other call sites.
+  private accessibleWhere(user: User) {
+    return {
+      archivedAt: null,
+      ...(user.isGlobalAdmin ? {} : { roles: { some: { userId: user.id } } }),
+    };
+  }
+
   findAccessible(user: User) {
     return this.prisma.event.findMany({
-      where: {
-        archivedAt: null,
-        ...(user.isGlobalAdmin ? {} : { roles: { some: { userId: user.id } } }),
-      },
+      where: this.accessibleWhere(user),
       orderBy: { date: 'desc' },
+    });
+  }
+
+  findAccessibleBySlug(user: User, slug: string) {
+    return this.prisma.event.findFirst({
+      where: { slug, ...this.accessibleWhere(user) },
     });
   }
 

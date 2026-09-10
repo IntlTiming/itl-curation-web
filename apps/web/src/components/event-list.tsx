@@ -1,4 +1,6 @@
+import { Link } from 'react-router'
 import { CreateEventDialog } from '@/components/create-event-dialog'
+import { Loading } from '@/components/loading'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import type { AuthUser } from '@/hooks/use-auth'
@@ -8,7 +10,7 @@ export function EventList({ user }: { user: AuthUser }) {
   const events = useEvents()
 
   if (events.status === 'loading') {
-    return <p className="text-sm text-muted-foreground">Loading events…</p>
+    return <Loading message="Loading events…" />
   }
 
   if (events.status === 'error') {
@@ -50,16 +52,22 @@ export function EventList({ user }: { user: AuthUser }) {
       </div>
       <div className="grid gap-3">
         {list.map((event) => (
-          <Card key={event.id}>
-            <CardHeader>
-              <CardTitle>{event.name}</CardTitle>
-              <CardDescription>
-                {event.date
-                  ? new Date(event.date).toLocaleDateString(undefined, { timeZone: 'UTC' })
-                  : 'No date set'}
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <Link
+            key={event.id}
+            to={`/events/${event.slug}`}
+            className="block rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Card className="transition-colors hover:bg-muted/50">
+              <CardHeader>
+                <CardTitle>{event.name}</CardTitle>
+                <CardDescription>
+                  {event.date
+                    ? new Date(event.date).toLocaleDateString(undefined, { timeZone: 'UTC' })
+                    : 'No date set'}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
         ))}
       </div>
     </div>
