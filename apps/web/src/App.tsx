@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EventList } from '@/components/event-list'
 import { ModeToggle } from '@/components/mode-toggle'
 import { UserMenu } from '@/components/user-menu'
 import { useAuth } from '@/hooks/use-auth'
@@ -38,11 +39,7 @@ function App() {
           </Card>
         )}
 
-        {auth.status === 'authenticated' && (
-          <p className="text-sm text-muted-foreground">
-            Signed in as {auth.user.displayName ?? auth.user.discordUsername}.
-          </p>
-        )}
+        {auth.status === 'authenticated' && <EventList user={auth.user} />}
       </main>
     </div>
   )

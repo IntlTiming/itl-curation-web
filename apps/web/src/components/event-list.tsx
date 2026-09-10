@@ -1,0 +1,67 @@
+import { CreateEventDialog } from '@/components/create-event-dialog'
+import { Button } from '@/components/ui/button'
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import type { AuthUser } from '@/hooks/use-auth'
+import { useEvents } from '@/hooks/use-events'
+
+export function EventList({ user }: { user: AuthUser }) {
+  const events = useEvents()
+
+  if (events.status === 'loading') {
+    return <p className="text-sm text-muted-foreground">Loading events…</p>
+  }
+
+  if (events.status === 'error') {
+    return <p className="text-sm text-destructive">Couldn't load events. Try refreshing.</p>
+  }
+
+  const { events: list, refetch } = events
+
+  if (list.length === 0) {
+    return (
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>No events yet</CardTitle>
+          <CardDescription>
+            {user.isGlobalAdmin
+              ? "You don't have access to any events yet."
+              : "You don't have access to any events yet. Ask an event admin to grant you a role."}
+          </CardDescription>
+        </CardHeader>
+        {user.isGlobalAdmin && (
+          <CardFooter>
+            <CreateEventDialog
+              onCreated={refetch}
+              trigger={<Button className="w-full">Create your first event</Button>}
+            />
+          </CardFooter>
+        )}
+      </Card>
+    )
+  }
+
+  return (
+    <div className="flex w-full max-w-2xl flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Events</h1>
+        {user.isGlobalAdmin && (
+          <CreateEventDialog onCreated={refetch} trigger={<Button>Create event</Button>} />
+        )}
+      </div>
+      <div className="grid gap-3">
+        {list.map((event) => (
+          <Card key={event.id}>
+            <CardHeader>
+              <CardTitle>{event.name}</CardTitle>
+              <CardDescription>
+                {event.date
+                  ? new Date(event.date).toLocaleDateString(undefined, { timeZone: 'UTC' })
+                  : 'No date set'}
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
