@@ -3,6 +3,7 @@ import type { User } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateEventDto } from './dto/create-event.dto.js';
+import { TECH_TAG_SEED_DATA } from './tech-tags.seed-data.js';
 
 @Injectable()
 export class EventsService {
@@ -45,14 +46,23 @@ export class EventsService {
     return existing === null;
   }
 
+  // TechTag is a global table (no eventId), so this seeds it once, the first time any
+  // event is ever created - upsert-by-label makes every later call a no-op, which is why
+  // it's safe to run unconditionally on every event creation rather than checking first.
   async create(dto: CreateEventDto) {
     try {
-      return await this.prisma.event.create({
-        data: {
-          name: dto.name,
-          slug: dto.slug,
-          date: dto.date ? new Date(dto.date) : undefined,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const event = await tx.event.create({
+          data: {
+            name: dto.name,
+            slug: dto.slug,
+            date: dto.date ? new Date(dto.date) : undefined,
+          },
+        });
+        for (const tag of TECH_TAG_SEED_DATA) {
+          await tx.techTag.upsert({ where: { label: tag.label }, update: {}, create: tag });
+        }
+        return event;
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {

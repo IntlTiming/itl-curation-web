@@ -134,6 +134,8 @@ model Submission {
   songDir               String? // downloaded/extracted directory relative to Songs-Submissions/, e.g. "Single/MIRROR [fileId]" - null alongside a processingError, since it depends on the pipeline's download/extraction step succeeding. Known before chart parsing ever runs, so it lives here rather than on the nullable Chart row
   bannerSlug            String // md5(salt + fileId) hex digest, used to locate banner images; always populated since fileId is always defined
   isInternal            Boolean                @default(false)
+  submittedAt           DateTime // pipeline's "timestamp_utc" - when the submission form was submitted, not this row's own createdAt/updatedAt
+  isIgnored             Boolean                @default(false) // mirrors the pipeline's "is_ignored" (e.g. superseded by a later resubmission of the same chart, among other reasons) - mapped straight from submissions.json like any other field while a fileId is present. If a fileId disappears from the file entirely, Import treats that the same as "is_ignored: true, chart: null" rather than deleting the row - the file is never allowed to delete rows outright, only to ignore them.
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 

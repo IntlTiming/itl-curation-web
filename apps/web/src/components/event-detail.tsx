@@ -1,6 +1,8 @@
 import { Inbox, Upload } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router';
+import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
+import { SubmissionsPanel } from '@/components/submissions-panel';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEvent } from '@/hooks/use-event';
@@ -67,8 +69,14 @@ export function EventDetail() {
           </TabsTrigger>
         )}
       </TabsList>
-      <TabsContent value="submissions" />
-      {event.isEventAdmin && <TabsContent value="import" />}
+      <TabsContent value="submissions">
+        <SubmissionsPanel eventSlug={event.slug} />
+      </TabsContent>
+      {event.isEventAdmin && (
+        <TabsContent value="import">
+          <ImportPanel eventSlug={event.slug} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
