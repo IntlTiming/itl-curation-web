@@ -75,21 +75,25 @@ const DIFFICULTY_BADGE_CLASS: Record<string, string> = {
   CHALLENGE: 'bg-[hsl(212,100%,70%)] text-black dark:bg-[hsl(212,100%,30%)] dark:text-white',
 };
 
-// small renders a more compact badge so it can sit inline alongside a text field label
-// (see the "Difficulty" field row below) or inline in a table cell, rather than as the
-// prominent header badge.
+// size="small" renders a more compact badge so it can sit inline alongside a text field
+// label (see the "Difficulty" field row below) or inline in a table cell that also carries
+// other text (Submissions/Import). The default (undefined) size is bigger, for contexts
+// like the Reviews table where the badge is the sole content of its own cell.
 export function DifficultyBadge({
   label,
   difficulty,
-  small,
+  size,
 }: {
   label: string;
   difficulty: string;
-  small?: boolean;
+  size?: 'small';
 }) {
   return (
     <Badge
-      className={cn(DIFFICULTY_BADGE_CLASS[difficulty] ?? '', small && 'h-4 px-1.5 text-[10px]')}
+      className={cn(
+        DIFFICULTY_BADGE_CLASS[difficulty] ?? '',
+        size === 'small' && 'h-4 px-1.5 text-[10px]',
+      )}
     >
       {label}
     </Badge>
@@ -253,7 +257,11 @@ export function ChartDetail({
     node: (
       <div key="difficulty">
         <span className="text-muted-foreground">Difficulty:</span>{' '}
-        <DifficultyBadge label={chartBadgeLabel(chart)} difficulty={chart.difficulty} small />
+        <DifficultyBadge
+          label={chartBadgeLabel(chart)}
+          difficulty={chart.difficulty}
+          size="small"
+        />
       </div>
     ),
   };

@@ -248,7 +248,7 @@ export function SubmissionDetail({
             {priorBadgeLabel}
           </Badge>
         )}
-        <DifficultyBadge label={badgeLabel} difficulty={submission.difficulty} small />
+        <DifficultyBadge label={badgeLabel} difficulty={submission.difficulty} size="small" />
       </div>
     ),
   };

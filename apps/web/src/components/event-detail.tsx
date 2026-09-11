@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEvent } from '@/hooks/use-event';
 import { usePageBreadcrumb } from '@/hooks/use-breadcrumb';
 
-const DEFAULT_TAB = 'submissions';
+const DEFAULT_TAB = 'reviews';
 
 export function EventDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -42,7 +42,7 @@ export function EventDetail() {
 
   return (
     <Tabs
-      className="w-full self-start"
+      className="w-full gap-6 self-start"
       value={tab}
       onValueChange={(value) => {
         setSearchParams(

@@ -10,12 +10,14 @@
 //   review.chartHash != submission.chart?.hash
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgTrgm(map: "pg_trgm")]
 }
 
 // ---------------------------------------------------------------------------
@@ -48,8 +50,8 @@ model Event {
   archivedAt DateTime? // soft delete - null = active. Dependent tables (Submission, Review, ...)
   // have no soft-delete column of their own; their archived status is inferred by
   // walking up to this field, since nothing lets a row survive independently of its event.
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   roles                   EventRole[]
   submissions             Submission[]
@@ -148,6 +150,10 @@ model Submission {
   disqualifications Disqualification[]
 
   @@index([eventId])
+  // Trigram indexes power the Reviews table's fuzzy text search - see Chart's matching
+  // comment and ReviewsService.
+  @@index([stepartist(ops: raw("gin_trgm_ops"))], type: Gin, map: "submissions_stepartist_trgm_idx")
+  @@index([pack(ops: raw("gin_trgm_ops"))], type: Gin, map: "submissions_pack_trgm_idx")
   @@map("submissions")
 }
 
@@ -223,6 +229,14 @@ model Chart {
   submission Submission @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
 
   @@index([hash])
+  // Trigram indexes power the Reviews table's fuzzy text search (similarity() over these
+  // columns) - see ReviewsService.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_title_trgm_idx")
+  @@index([titleRomaji(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_title_romaji_trgm_idx")
+  @@index([subtitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_subtitle_trgm_idx")
+  @@index([subtitleRomaji(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_subtitle_romaji_trgm_idx")
+  @@index([artist(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_artist_trgm_idx")
+  @@index([artistRomaji(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_artist_romaji_trgm_idx")
   @@map("charts")
 }
 
@@ -279,16 +293,16 @@ model BasicCheckReason {
 }
 
 model Review {
-  id             String   @id @default(cuid())
-  submissionId   String
-  reviewerId     String
-  chartHash      String // snapshot: which chart hash this opinion is about
-  rating         Int? // stored as hundredths - assume at most 2 decimal places (e.g. 150 = 1.50); business logic scales on read/write
-  passing        Int?
-  scoring        Int?
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           String   @id @default(cuid())
+  submissionId String
+  reviewerId   String
+  chartHash    String // snapshot: which chart hash this opinion is about
+  rating       Int? // stored as hundredths - assume at most 2 decimal places (e.g. 150 = 1.50); business logic scales on read/write
+  passing      Int?
+  scoring      Int?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Deliberately no constraint tying passing/scoring to basicCheckReasons:
   // reviewers sometimes score a chart that failed a basic check and sometimes

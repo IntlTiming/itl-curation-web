@@ -1,6 +1,6 @@
 import { cn } from 'cn';
 import { ChevronRight } from 'lucide-react';
-import { Fragment, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { ChartDetail } from '@/components/chart-detail';
 import { Loading } from '@/components/loading';
 import { SubmissionDetail } from '@/components/submission-detail';
@@ -13,6 +13,8 @@ import {
   SubmissionStatusBadge,
   type RowTone,
 } from '@/components/submission-row';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -31,6 +33,10 @@ import { useSubmissions } from '@/hooks/use-submissions';
 export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
   const result = useSubmissions(eventSlug);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showIgnored, setShowIgnored] = useState(true);
+  const [showErrored, setShowErrored] = useState(true);
+  const showIgnoredId = useId();
+  const showErroredId = useId();
 
   function toggleExpanded(fileId: string) {
     setExpanded((prev) => {
@@ -53,75 +59,104 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
     return <p className="text-muted-foreground text-sm">No submissions yet.</p>;
   }
 
+  const visibleSubmissions = result.submissions.filter(
+    (submission) =>
+      (showIgnored || !submission.isIgnored) && (showErrored || !submission.processingError),
+  );
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead />
-          <TableHead>Submitted</TableHead>
-          <TableHead>Submitter</TableHead>
-          <TableHead>Stepartist</TableHead>
-          <TableHead>Chart</TableHead>
-          <TableHead>File ID</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {result.submissions.map((submission) => {
-          const status = submission.processingError ?? 'Success';
-          const rowTone: RowTone | null =
-            status !== 'Success' ? 'error' : submission.isIgnored ? 'ignored' : null;
-          return (
-            <Fragment key={submission.fileId}>
-              <TableRow
-                className={cn('cursor-pointer', rowTone && ROW_TONE_CLASS[rowTone])}
-                onClick={() => toggleExpanded(submission.fileId)}
-              >
-                <TableCell className="w-4">
-                  <ChevronRight
-                    className={cn(
-                      'text-muted-foreground size-4 transition-transform',
-                      expanded.has(submission.fileId) && 'rotate-90',
-                    )}
-                  />
-                </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  {formatTimestamp(submission.submittedAt)}
-                </TableCell>
-                <TableCell>{submission.submitter}</TableCell>
-                <TableCell>{submission.stepartist}</TableCell>
-                <TableCell>
-                  <ChartCell
-                    chart={submission.chart}
-                    submission={submission}
-                    pack={submission.pack}
-                  />
-                </TableCell>
-                <TableCell>
-                  <CopyFileIdButton fileId={submission.fileId} />
-                </TableCell>
-                <TableCell>
-                  <SubmissionStatusBadge status={status} isIgnored={submission.isIgnored} />
-                </TableCell>
-              </TableRow>
-              {expanded.has(submission.fileId) && (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className={cn(
-                      'whitespace-normal',
-                      rowTone ? ROW_TONE_EXPANDED_CLASS[rowTone] : 'bg-muted/30',
-                    )}
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={showIgnoredId}
+            checked={showIgnored}
+            onCheckedChange={(checked) => setShowIgnored(checked === true)}
+          />
+          <Label htmlFor={showIgnoredId}>Show ignored</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={showErroredId}
+            checked={showErrored}
+            onCheckedChange={(checked) => setShowErrored(checked === true)}
+          />
+          <Label htmlFor={showErroredId}>Show errored</Label>
+        </div>
+      </div>
+      {visibleSubmissions.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No submissions match these filters.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead />
+              <TableHead>Submitted</TableHead>
+              <TableHead>Submitter</TableHead>
+              <TableHead>Stepartist</TableHead>
+              <TableHead>Chart</TableHead>
+              <TableHead>File ID</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleSubmissions.map((submission) => {
+              const status = submission.processingError ?? 'Success';
+              const rowTone: RowTone | null =
+                status !== 'Success' ? 'error' : submission.isIgnored ? 'ignored' : null;
+              return (
+                <Fragment key={submission.fileId}>
+                  <TableRow
+                    className={cn('cursor-pointer', rowTone && ROW_TONE_CLASS[rowTone])}
+                    onClick={() => toggleExpanded(submission.fileId)}
                   >
-                    <SubmissionDetail submission={submission} />
-                    {submission.chart && <ChartDetail chart={submission.chart} />}
-                  </TableCell>
-                </TableRow>
-              )}
-            </Fragment>
-          );
-        })}
-      </TableBody>
-    </Table>
+                    <TableCell className="w-4">
+                      <ChevronRight
+                        className={cn(
+                          'text-muted-foreground size-4 transition-transform',
+                          expanded.has(submission.fileId) && 'rotate-90',
+                        )}
+                      />
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatTimestamp(submission.submittedAt)}
+                    </TableCell>
+                    <TableCell>{submission.submitter}</TableCell>
+                    <TableCell>{submission.stepartist}</TableCell>
+                    <TableCell>
+                      <ChartCell
+                        chart={submission.chart}
+                        submission={submission}
+                        pack={submission.pack}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CopyFileIdButton fileId={submission.fileId} />
+                    </TableCell>
+                    <TableCell>
+                      <SubmissionStatusBadge status={status} isIgnored={submission.isIgnored} />
+                    </TableCell>
+                  </TableRow>
+                  {expanded.has(submission.fileId) && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className={cn(
+                          'whitespace-normal',
+                          rowTone ? ROW_TONE_EXPANDED_CLASS[rowTone] : 'bg-muted/30',
+                        )}
+                      >
+                        <SubmissionDetail submission={submission} />
+                        {submission.chart && <ChartDetail chart={submission.chart} />}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </div>
   );
 }

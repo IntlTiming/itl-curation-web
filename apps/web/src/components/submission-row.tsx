@@ -48,7 +48,11 @@ export function ChartCell({
     const subtitle = chart.subtitleRomaji || chart.subtitle;
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
-        <DifficultyBadge label={chartBadgeLabel(chart)} difficulty={chart.difficulty} small />
+        <DifficultyBadge
+          label={chartBadgeLabel(chart)}
+          difficulty={chart.difficulty}
+          size="small"
+        />
         <span>
           {pack}/{title}
           {subtitle ? ` ${subtitle}` : ''}
@@ -62,7 +66,7 @@ export function ChartCell({
         <DifficultyBadge
           label={chartBadgeLabel(submission)}
           difficulty={submission.difficulty}
-          small
+          size="small"
         />
         <span>{pack}</span>
       </span>
