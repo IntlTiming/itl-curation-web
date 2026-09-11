@@ -1,16 +1,18 @@
 import { cn } from 'cn';
-import { format } from 'date-fns';
 import { ChevronRight, CircleCheck, FileJson, UploadCloud, X } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import {
-  chartBadgeLabel,
-  ChartDetail,
-  DifficultyBadge,
-  type ChartFields,
-} from '@/components/chart-detail';
-import { CopyButton } from '@/components/copy-button';
+import { ChartDetail, type ChartFields } from '@/components/chart-detail';
 import { SubmissionDetail, type SubmissionFields } from '@/components/submission-detail';
+import {
+  ChartCell,
+  CopyFileIdButton,
+  formatTimestamp,
+  ROW_TONE_CLASS,
+  ROW_TONE_EXPANDED_CLASS,
+  SubmissionStatusBadge,
+  type RowTone,
+} from '@/components/submission-row';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,7 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type SubmissionRowSummary = {
   fileId: string;
@@ -85,60 +86,12 @@ type ImportPanelState =
   | { phase: 'apply-error'; errors: string[] }
   | { phase: 'applied'; result: ImportApplyResponse['result'] };
 
-// Localized date+time, e.g. "Sep 7, 2026, 4:35 PM" - shown in the viewer's local timezone
-// since format() operates on the Date object's local representation.
-function formatTimestamp(iso: string): string {
-  return format(new Date(iso), 'PP p');
-}
-
 function formatValue(field: string, value: unknown): string {
   if (field === 'submittedAt' && typeof value === 'string') return formatTimestamp(value);
   if (value === null || value === undefined) return '—';
   if (Array.isArray(value)) return value.length ? value.join(', ') : '(none)';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   return String(value);
-}
-
-// e.g. "[SX13 badge] Single/MIRROR (Subtitle)" - small difficulty badge first, then
-// pack/title and optional subtitle. Stepartist is its own column, not folded in here.
-// A submission whose chart failed to parse still has its own submitter-claimed
-// playstyle/difficulty, so the badge falls back to that (without a meter, since the
-// submission's claim - unlike the chart - carries no meter) rather than disappearing.
-function ChartCell({
-  chart,
-  submission,
-  pack,
-}: {
-  chart: ChartFields | null | undefined;
-  submission: SubmissionFields | null | undefined;
-  pack: string;
-}) {
-  if (chart) {
-    const title = chart.titleRomaji || chart.title;
-    const subtitle = chart.subtitleRomaji || chart.subtitle;
-    return (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <DifficultyBadge label={chartBadgeLabel(chart)} difficulty={chart.difficulty} small />
-        <span>
-          {pack}/{title}
-          {subtitle ? ` ${subtitle}` : ''}
-        </span>
-      </span>
-    );
-  }
-  if (submission) {
-    return (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <DifficultyBadge
-          label={chartBadgeLabel(submission)}
-          difficulty={submission.difficulty}
-          small
-        />
-        <span>{pack}</span>
-      </span>
-    );
-  }
-  return <>{pack}</>;
 }
 
 // Mirrors the conventional diff coloring (added/modified/removed) so the three kinds of
@@ -150,32 +103,10 @@ const CHANGE_KIND_CLASS = {
   ignore: 'border-transparent bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400',
 } as const;
 
-// Same tone driving the amber/red "Success"/"Error" badge above, applied to the whole row so
-// an ignored or errored row draws the reviewer's eye without scanning the Status column - the
-// expanded detail row gets a lighter tint of the same color, one step down.
-const ROW_TONE_CLASS = {
-  ignored: 'bg-amber-100 dark:bg-amber-500/25',
-  error: 'bg-red-100 dark:bg-red-500/25',
-} as const;
-const ROW_TONE_EXPANDED_CLASS = {
-  ignored: 'bg-amber-50 dark:bg-amber-500/10',
-  error: 'bg-red-50 dark:bg-red-500/10',
-} as const;
-
-type RowTone = keyof typeof ROW_TONE_CLASS;
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function CopyFileIdButton({ fileId }: { fileId: string }) {
-  return (
-    <CopyButton value={fileId} title={fileId}>
-      <span className="truncate">{fileId.slice(0, 10)}…</span>
-    </CopyButton>
-  );
 }
 
 function Dropzone({
@@ -482,22 +413,10 @@ export function ImportPanel({ eventSlug }: { eventSlug: string }) {
                       <CopyFileIdButton fileId={row.fileId} />
                     </TableCell>
                     <TableCell>
-                      {row.status === 'Success' ? (
-                        submission?.isIgnored ? (
-                          <Badge className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400">
-                            Success
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Success</Badge>
-                        )
-                      ) : (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge variant="destructive">Error</Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>{row.status}</TooltipContent>
-                        </Tooltip>
-                      )}
+                      <SubmissionStatusBadge
+                        status={row.status}
+                        isIgnored={submission?.isIgnored ?? false}
+                      />
                     </TableCell>
                     <TableCell>
                       <Badge
