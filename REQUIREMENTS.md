@@ -5,10 +5,10 @@ Status: design phase. No application code written yet. The only artifact so far 
 
 This document covers **two** related projects, because they were designed together:
 
-| Project | Role | Git host |
-| --- | --- | --- |
-| `itl-online-2027-pack` | ETL pipeline + chart asset storage for the 2027 season | private Gogs server |
-| `itl-curation-web` | Web app replacing the Google Sheet review process (owns the DB) | GitHub |
+| Project                | Role                                                            | Git host            |
+| ---------------------- | --------------------------------------------------------------- | ------------------- |
+| `itl-online-2027-pack` | ETL pipeline + chart asset storage for the 2027 season          | private Gogs server |
+| `itl-curation-web`     | Web app replacing the Google Sheet review process (owns the DB) | GitHub              |
 
 Reference implementation for the pipeline: `itl-online-2026-pack` (existing, working).
 
@@ -70,18 +70,21 @@ explicit Sheets scope, but the full `drive` scope covers Sheets access.
 ### 3.1 Tabs grouped by concern
 
 **Intake (raw form data)**
+
 - `Responses`, `Internal Responses` - the submission form. Submitter Discord ID,
   stepartist, pack, playstyle, difficulty slot, chart focus, tech represented, CMOD
   preference, year, theme, notes, Drive upload link, file ID.
 - `Suggestions` - a separate, lighter "suggest someone else's chart" flow.
 
 **Chart metadata (pipeline output)**
+
 - `MASTER` - full computed metadata for every submission. This is `Chart.to_dict()` in
   `models.py`.
 - `Selections` - identical schema, filtered to the finally-chosen charts.
 - `chart_to_hash` - lookup feeding the sheet's dropdowns.
 
 **Review process (what the web app replaces)**
+
 - `TEMPLATE` plus 14 per-reviewer tabs: `Ele`, `Evan`, `Sudzi`, `Tommy`, `Vincent`,
   `Ricky`, `Valex`, `Cmmf`, `Tev`, `Hubert`, `Chino`, `Telperion`, `teejusb`, `Rynker`.
 - `ALL_REVIEWS` - flattened union of the reviewer tabs. Effectively a normalized reviews
@@ -92,6 +95,7 @@ explicit Sheets scope, but the full `drive` scope covers Sheets access.
   summary counts.
 
 **Post-selection / release pipeline (deferred, not modelled)**
+
 - `GOGS` - measured pattern analytics per chart. Output of a separate analyzer, not
   `main.py`.
 - `Final Pointing` (+ dated backup) - hand-tuned scoring/balance sheet (passing points,
@@ -100,9 +104,11 @@ explicit Sheets scope, but the full `drive` scope covers Sheets access.
 - `YouTube-Links`, `Original Hashes`, `nine-or-null change sheet` - supporting metadata.
 
 **Game meta-content (unrelated to review)**
+
 - `Unlocks`, `UnlockIds`, `Titles`, `Achievements`, `the stamina chain.`
 
 **Org tooling**
+
 - `TODO`
 
 ### 3.2 Emergent behaviour found by reading cell formulas
@@ -115,7 +121,7 @@ decisions. Found by inspecting the `Vincent` and `Ricky` tabs with
    Observed values: `✅`, `Beat 0`, `Profanity`, `Used before`. New values appear as
    reviewers discover new failure classes, which is why the schema uses a lookup table.
 2. **`Auto DQ'd?` is a cross-sheet formula, not a manual flag.** It scans
-   `REVIEW_AGGREGATES` for a DQ on the same chart raised by *someone else*, and flags TRUE.
+   `REVIEW_AGGREGATES` for a DQ on the same chart raised by _someone else_, and flags TRUE.
    So one reviewer's DQ propagates automatically into every other reviewer's row, excluding
    the DQ'er's own row. It relies on a custom `getCurrentSheetName()` Apps Script function.
 3. **`Duplicate?` is a formula** (`COUNTIF` over the reviewer's own hash column) that
@@ -130,7 +136,7 @@ decisions. Found by inspecting the `Vincent` and `Ricky` tabs with
 7. **Copy-drift is real.** The `Vincent` tab's header cell A1 is a literal space instead of
    `Chart`, from repeated copy-pasting of `TEMPLATE`. There is no schema enforcement today.
 8. **Passing/scoring vs basic-check failure is reviewer discretion, not a rule.** Ricky's
-   `BROOKLYN` row has `Profanity` *and* a full 2.5/2/2 score; his `Mood` row has `Profanity`
+   `BROOKLYN` row has `Profanity` _and_ a full 2.5/2/2 score; his `Mood` row has `Profanity`
    with them blank. Do not encode this as a DB constraint.
 9. **Ratings use half-points** (1.5, 2.5). Passing and scoring are separate integer axes,
    not derived from rating.
@@ -145,17 +151,17 @@ The schema lives in `prisma/schema.prisma` (Postgres). Key decisions:
 
 **Identity: Google Drive `fileId` is the primary key for a submission.**
 It is guaranteed present (every submission has an upload) and guaranteed unique. Critically,
-it is *stable across chart revisions*, which the hash is not.
+it is _stable across chart revisions_, which the hash is not.
 
 **Chart data lives on a nullable `Chart` table, 1:1 with `Submission` - no version history.**
-*(Supersedes the original `ChartVersion` design below - kept for the record, not because it's
-still current.)*
+_(Supersedes the original `ChartVersion` design below - kept for the record, not because it's
+still current.)_
 
 Originally modeled as `ChartVersion`: one row per hash the submission has ever had, plus
 `currentChartVersionId` on `Submission` pointing at the current one, specifically so a
 stepartist's resync/patch never silently overwrote what a reviewer had already seen.
-Revisited: the only thing actually needed is knowing *that* the chart changed since it was
-last reviewed, not reconstructing *what* changed or replaying a timeline. Collapsing to a
+Revisited: the only thing actually needed is knowing _that_ the chart changed since it was
+last reviewed, not reconstructing _what_ changed or replaying a timeline. Collapsing to a
 single nullable `Chart` row per submission (mutated in place on change) removes a whole
 table's worth of version bookkeeping for a capability that isn't required.
 
@@ -167,7 +173,7 @@ fact (row exists or not), not something inferred from which of several columns h
 null.
 
 Explicitly accepted trade-off, in exchange for the simpler schema: no "show what changed"
-diff view, and no way to reconstruct *when* two submissions' hashes started matching
+diff view, and no way to reconstruct _when_ two submissions' hashes started matching
 (relevant to a plagiarism-timing dispute). Both still recoverable later without a schema
 rewrite - add a lightweight append-only `(submissionId, hash, changedAt)` log alongside
 `Chart` if that forensic capability turns out to matter; `Chart` itself doesn't need to
@@ -182,7 +188,7 @@ since the DQ was raised" signal a version-ID comparison did. Same reasoning appl
 Bonus simplification this unlocks: the old `Submission` <-> `ChartVersion` relation was
 circular purely because `ChartVersion` also needed a `submissionId` FK back for the
 1-to-many `chartVersions` collection, so `Submission` needed its own separate
-`currentChartVersionId` pointer to say *which* of the many was current. A genuinely 1:1
+`currentChartVersionId` pointer to say _which_ of the many was current. A genuinely 1:1
 `Chart` doesn't have that ambiguity - `Chart.submissionId` (now `@unique`, keeping the same
 FK direction and `onDelete: Cascade` `ChartVersion` already had) is sufficient on its own,
 and `Submission.chart` is just a virtual back-relation with no column. The
@@ -218,7 +224,7 @@ admins can add a reason mid-season without a migration and deploy.
 
 **Tech tags are normalized** into `TechTag` + `SubmissionTechTag`, replacing the 18 flat
 `has_*` columns the spreadsheet needed for filtering. Note the distinction between
-*submitter-claimed* tech (from the form, on the submission) and *measured* pattern counts
+_submitter-claimed_ tech (from the form, on the submission) and _measured_ pattern counts
 (computed from the chart, would belong on `Chart`).
 
 **`Submission.songDir` is nullable, not required.** It's the pipeline's downloaded/extracted
@@ -304,6 +310,7 @@ a plain virtual back-relation. Don't reintroduce a `currentChartId`-style pointe
 ## 5. Open items
 
 **Decided**
+
 - **`GOGS` measured pattern analytics are implemented, not deferred.** Previously listed below
   under "Deferred by decision" - the pipeline's techcount engine already computes these fields
   for every parsed chart, so they were added to `Chart` rather than thrown away. See "Schema
@@ -328,6 +335,7 @@ a plain virtual back-relation. Don't reintroduce a `currentChartId`-style pointe
   upsert logic - only the transport changes.
 
 **Not yet designed**
+
 - **Selections / final pack build.** What `--build-pack` consumes, and how a selection
   decision is recorded (who selects, when, per-event slot targets).
 - **The import script itself.** Not yet written - needs the actual upsert logic described
@@ -337,6 +345,7 @@ a plain virtual back-relation. Don't reintroduce a `currentChartId`-style pointe
   frontend decisions made.
 
 **Deferred by decision (later phase, deliberately out of v1)**
+
 - `Final Pointing` scoring/balance model.
 - `SQL-Release` output generation.
 - `Unlocks` / `Titles` / `Achievements` game meta-content.
@@ -352,30 +361,31 @@ reuse 2026's `tech_shorthand_map` where a precedent existed, plus 2 newly confir
 the 2 labels that had none. Reference data for the seed script that will exist once an import
 script is written - not seeded yet.
 
-| Label | Category | Code |
-| --- | --- | --- |
-| Brackets (includes Bracket Taps) | BXF | `BR` |
-| Crossovers | BXF | `XO` |
-| Footswitches | BXF | `FS` |
-| Jacks | TECH | `JA` |
-| Sideswitches | TECH | `SS` |
-| Doublesteps w/ Mines | TECH | `Mine-DS` |
-| Holds/Rolls (Wadatsumis; Footswitching holds; Holdstream) | TECH | `Holds-Rolls` |
-| Center-tech | TECH | `CT` |
-| Mine dodge | TECH | `MD` |
-| Kickswitches | TECH | `KS` |
-| Bursts (includes Drills) | NOTECH | `BU` |
-| Rhythms (Swing) | NOTECH | `RH-SW` |
-| Rhythms (Skittles) | NOTECH | `RH-SK` |
-| Stepjumps | NOTECH | `SJ` |
-| Flams | NOTECH | `FL` |
-| Doublesteps w/ Holds | NOTECH | `Hold-DS` |
-| (Doubles) Stretch | NOTECH | `ST` |
-| (Doubles) Movement | NOTECH | `MV` |
-| (Doubles) Center/Transitions | NOTECH | `DUB-CT` (new, no 2026 precedent) |
-| (Doubles) Half-Doubles | NOTECH | `DUB-HD` (new, no 2026 precedent) |
+| Label                                                     | Category | Code                              |
+| --------------------------------------------------------- | -------- | --------------------------------- |
+| Brackets (includes Bracket Taps)                          | BXF      | `BR`                              |
+| Crossovers                                                | BXF      | `XO`                              |
+| Footswitches                                              | BXF      | `FS`                              |
+| Jacks                                                     | TECH     | `JA`                              |
+| Sideswitches                                              | TECH     | `SS`                              |
+| Doublesteps w/ Mines                                      | TECH     | `Mine-DS`                         |
+| Holds/Rolls (Wadatsumis; Footswitching holds; Holdstream) | TECH     | `Holds-Rolls`                     |
+| Center-tech                                               | TECH     | `CT`                              |
+| Mine dodge                                                | TECH     | `MD`                              |
+| Kickswitches                                              | TECH     | `KS`                              |
+| Bursts (includes Drills)                                  | NOTECH   | `BU`                              |
+| Rhythms (Swing)                                           | NOTECH   | `RH-SW`                           |
+| Rhythms (Skittles)                                        | NOTECH   | `RH-SK`                           |
+| Stepjumps                                                 | NOTECH   | `SJ`                              |
+| Flams                                                     | NOTECH   | `FL`                              |
+| Doublesteps w/ Holds                                      | NOTECH   | `Hold-DS`                         |
+| (Doubles) Stretch                                         | NOTECH   | `ST`                              |
+| (Doubles) Movement                                        | NOTECH   | `MV`                              |
+| (Doubles) Center/Transitions                              | NOTECH   | `DUB-CT` (new, no 2026 precedent) |
+| (Doubles) Half-Doubles                                    | NOTECH   | `DUB-HD` (new, no 2026 precedent) |
 
 **Decided by me, never explicitly confirmed - challenge these first**
+
 - Normalizing tech tags into `TechTag` + `SubmissionTechTag`.
 - Two separate reason tables rather than one table with a `kind` discriminator. Justified by
   2026's vocabularies not overlapping (`Beat 0` / `Profanity` / `Used before` for basic
@@ -400,7 +410,7 @@ Candidate improvements, **not yet agreed**:
   the stored 2026 token was months expired and refreshed silently in one call.
 - **Consider separating chart assets from pipeline code.** The current repo bundles both.
   Splitting them would let pipeline code be persistent and event-parameterized while assets
-  stay season-scoped, but this was explicitly *not* adopted - see section 2.
+  stay season-scoped, but this was explicitly _not_ adopted - see section 2.
 
 ### 2026 pipeline shape, for reference
 

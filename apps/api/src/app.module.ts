@@ -4,8 +4,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { AuthModule } from './auth/auth.module.js';
+import { EventsModule } from './events/events.module.js';
 import { HealthController } from './health/health.controller.js';
+import { ImportModule } from './import/import.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { SubmissionsModule } from './submissions/submissions.module.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +24,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     }),
     PrismaModule,
     AuthModule,
+    EventsModule,
+    ImportModule,
+    SubmissionsModule,
   ],
   controllers: [HealthController],
 })

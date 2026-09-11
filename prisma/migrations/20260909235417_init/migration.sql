@@ -39,6 +39,7 @@ CREATE TABLE "events" (
     "slug" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "date" TIMESTAMP(3),
+    "archivedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -239,6 +240,9 @@ CREATE UNIQUE INDEX "events_slug_key" ON "events"("slug");
 
 -- CreateIndex
 CREATE INDEX "events_date_idx" ON "events"("date");
+
+-- CreateIndex
+CREATE INDEX "events_archivedAt_idx" ON "events"("archivedAt");
 
 -- CreateIndex
 CREATE INDEX "event_roles_userId_idx" ON "event_roles"("userId");

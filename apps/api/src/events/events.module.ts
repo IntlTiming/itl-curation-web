@@ -1,0 +1,13 @@
+import { Module } from '@nestjs/common';
+import { PassportModule } from '@nestjs/passport';
+import { EventAdminGuard } from './event-admin.guard.js';
+import { EventsController } from './events.controller.js';
+import { EventsService } from './events.service.js';
+
+@Module({
+  imports: [PassportModule.register({ session: false })],
+  controllers: [EventsController],
+  providers: [EventsService, EventAdminGuard],
+  exports: [EventsService, EventAdminGuard],
+})
+export class EventsModule {}

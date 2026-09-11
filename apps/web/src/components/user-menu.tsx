@@ -1,5 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,20 +7,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import type { AuthUser } from '@/hooks/use-auth'
+} from '@/components/ui/dropdown-menu';
+import type { AuthUser } from '@/hooks/use-auth';
 
 function discordAvatarUrl(user: AuthUser) {
-  if (!user.discordAvatarHash) return undefined
-  return `https://cdn.discordapp.com/avatars/${user.discordId}/${user.discordAvatarHash}.png`
+  if (!user.discordAvatarHash) return undefined;
+  return `https://cdn.discordapp.com/avatars/${user.discordId}/${user.discordAvatarHash}.png`;
 }
 
 export function UserMenu({ user }: { user: AuthUser }) {
-  const name = user.displayName ?? user.discordUsername
+  const name = user.displayName ?? user.discordUsername;
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    window.location.reload()
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.reload();
   }
 
   return (
@@ -38,12 +38,12 @@ export function UserMenu({ user }: { user: AuthUser }) {
         <DropdownMenuLabel>
           {name}
           {user.isGlobalAdmin && (
-            <span className="block text-xs font-normal text-muted-foreground">Global admin</span>
+            <span className="text-muted-foreground block text-xs font-normal">Global admin</span>
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => void logout()}>Log out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }

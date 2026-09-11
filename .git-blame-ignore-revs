@@ -1,0 +1,5 @@
+# Prettier repo-wide one-time reformat when Prettier was formalized as the
+# formatting standard - run `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+# locally to have `git blame` skip these; GitHub's own blame view picks this
+# file up automatically.
+e7eabd5120952f0d4e99e4fdfa0bbf04d59da213
