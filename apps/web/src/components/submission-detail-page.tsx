@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/use-auth';
 import { usePageBreadcrumb } from '@/hooks/use-breadcrumb';
 import { useEvent } from '@/hooks/use-event';
+import { usePageTitle } from '@/hooks/use-page-title';
 import {
   useSubmissionDetail,
   type SubmissionDetailReview,
@@ -202,6 +203,13 @@ export function SubmissionDetailPage() {
     event.status === 'loaded' && chartTitle
       ? [{ label: event.event.name, to: `/events/${slug}` }, { label: chartTitle }]
       : [],
+  );
+  usePageTitle(
+    event.status !== 'loaded' || detail.status !== 'loaded'
+      ? null
+      : detail.submission.chart
+        ? `${chartTitle} - Submission - ${event.event.name}`
+        : `Submission (${fileId}) - ${event.event.name}`,
   );
 
   if (detail.status === 'loading') {
