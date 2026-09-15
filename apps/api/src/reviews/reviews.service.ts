@@ -1,14 +1,56 @@
-import { Injectable } from '@nestjs/common';
-import type { CmodPreference, ConsentToPublicReview, Difficulty, Playstyle } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type {
+  Chart,
+  CmodPreference,
+  ConsentToPublicReview,
+  Difficulty,
+  Playstyle,
+} from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ReviewsQueryDto } from './dto/reviews-query.dto.js';
+import type { UpsertReviewDto } from './dto/upsert-review.dto.js';
 
 // Trigram similarity threshold for the fuzzy text search below. Deliberately below
 // pg_trgm's default 0.3 GUC (which only governs the `%` operator, not similarity()
 // directly) since these are short individual fields, not the longer concatenated text
 // that default was tuned around. Tune after eyeballing real search results.
 const SIMILARITY_THRESHOLD = 0.2;
+
+// pg_trgm's similarity() needs real trigram overlap to mean anything: a 1-2 character term
+// only ever produces its own leading/trailing padding trigrams (e.g. "a" -> {"  a", " a "}),
+// which essentially never occur inside a normal column value, so similarity() comes back ~0
+// and the threshold above filters out every row - including exact matches. Below this length,
+// match/rank by plain substring instead (see isMatchColumn/rankColumn).
+const SHORT_SEARCH_TERM_LENGTH = 3;
+
+// Escapes LIKE/ILIKE's own wildcard syntax out of user-typed search input, so e.g. searching
+// literally for "%" doesn't become a match-everything wildcard. Postgres's default LIKE escape
+// character is itself a backslash, so escaping backslash first (before introducing new ones for
+// % and _) is what keeps this correct without an explicit ESCAPE clause.
+function escapeLikePattern(term: string): string {
+  return term.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+// Whether `column` counts as a match for `term` in the WHERE clause - see
+// SHORT_SEARCH_TERM_LENGTH's comment for why short terms need a different strategy than
+// similarity().
+function isMatchColumn(column: Prisma.Sql, term: string): Prisma.Sql {
+  if (term.length < SHORT_SEARCH_TERM_LENGTH) {
+    return Prisma.sql`${column} ILIKE ${'%' + escapeLikePattern(term) + '%'}`;
+  }
+  return Prisma.sql`similarity(${column}, ${term}) > ${SIMILARITY_THRESHOLD}`;
+}
+
+// Per-column relevance score for ORDER BY - similarity() is a real 0..1 score at 3+ characters,
+// but degrades to a plain 0/1 "does it contain the term at all" below that, since there's no
+// meaningful gradient to rank by yet.
+function rankColumn(column: Prisma.Sql, term: string): Prisma.Sql {
+  if (term.length < SHORT_SEARCH_TERM_LENGTH) {
+    return Prisma.sql`(CASE WHEN ${column} ILIKE ${'%' + escapeLikePattern(term) + '%'} THEN 1 ELSE 0 END)`;
+  }
+  return Prisma.sql`similarity(${column}, ${term})`;
+}
 
 type RawReviewRow = {
   fileId: string;
@@ -34,6 +76,7 @@ type RawReviewRow = {
   minRating: number | null;
   maxRating: number | null;
   stdevRating: number | null;
+  hasOwnReview: boolean;
 };
 
 export type ReviewsRow = {
@@ -65,6 +108,10 @@ export type ReviewsRow = {
   minRating: number | null;
   maxRating: number | null;
   stdevRating: number | null;
+  // Whether the CURRENT user already has a review row on this exact submission (by fileId, not
+  // chart hash - matches the Review@@unique([submissionId, reviewerId]) scope the edit modal's
+  // upsert endpoint operates on), so the Add/Edit icon can distinguish the two states.
+  hasOwnReview: boolean;
 };
 
 export type ReviewsResponse = {
@@ -105,6 +152,108 @@ export function mapRawReviewRow(row: RawReviewRow): ReviewsRow {
     minRating: row.minRating == null ? null : row.minRating / 100,
     maxRating: row.maxRating == null ? null : row.maxRating / 100,
     stdevRating: row.stdevRating == null ? null : row.stdevRating / 100,
+    hasOwnReview: row.hasOwnReview,
+  };
+}
+
+// Shared by the Reviews tab's per-chart aggregate stats and the submission-detail page's
+// single-chart lookup, so the two pages' numbers are computed by the exact same SQL rather than
+// risking drift from two hand-written copies. `chartHashRef` is a Prisma.Sql fragment - either a
+// correlated column reference (e.g. `Prisma.sql\`c.hash\``, for use inside a LATERAL join) or a
+// literal value wrapped as `Prisma.sql\`${hash}\`` (for a standalone query).
+export function buildReviewStatsFragment(chartHashRef: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      COUNT(*)             AS review_count,
+      AVG(rating)::float8  AS avg_rating,
+      MIN(rating)          AS min_rating,
+      MAX(rating)          AS max_rating,
+      STDDEV_POP(rating)   AS stdev_rating
+    FROM reviews r
+    WHERE r."chartHash" = ${chartHashRef}
+  `;
+}
+
+export type RawReviewStats = {
+  review_count: bigint;
+  avg_rating: number | null;
+  min_rating: number | null;
+  max_rating: number | null;
+  stdev_rating: number | null;
+};
+
+export type ReviewStats = {
+  reviewCount: number;
+  avgRating: number | null;
+  minRating: number | null;
+  maxRating: number | null;
+  stdevRating: number | null;
+};
+
+type BasicCheckPair = { basicCheckReasonId: string; note: string | null };
+
+function sortedBasicChecks(checks: BasicCheckPair[]): BasicCheckPair[] {
+  return [...checks].sort((a, b) => a.basicCheckReasonId.localeCompare(b.basicCheckReasonId));
+}
+
+type ReviewFields = {
+  rating: number | null;
+  passing: number | null;
+  scoring: number | null;
+  notes: string | null;
+  basicChecks: BasicCheckPair[];
+};
+
+// Decides whether saving a review needs a ReviewRevision written at all - an idempotent re-save
+// (e.g. the reviewer just reopened and resubmitted without changing anything) shouldn't flood the
+// append-only audit trail with no-op entries.
+export function reviewFieldsChanged(existing: ReviewFields, next: ReviewFields): boolean {
+  if (existing.rating !== next.rating) return true;
+  if (existing.passing !== next.passing) return true;
+  if (existing.scoring !== next.scoring) return true;
+  if (existing.notes !== next.notes) return true;
+
+  const a = sortedBasicChecks(existing.basicChecks);
+  const b = sortedBasicChecks(next.basicChecks);
+  if (a.length !== b.length) return true;
+  return a.some(
+    (check, i) => check.basicCheckReasonId !== b[i].basicCheckReasonId || check.note !== b[i].note,
+  );
+}
+
+// Scales rating back to a plain decimal (same convention as mapRawReviewRow) before returning
+// an upserted review to the client - the DTO takes/returns plain decimals everywhere else, so
+// the raw hundredths-scaled Review row shouldn't leak through this one endpoint.
+export function mapUpsertedReview<
+  T extends {
+    rating: number | null;
+    basicCheckReasons: {
+      basicCheckReasonId: string;
+      note: string | null;
+      basicCheckReason: { code: string; label: string; level: string };
+    }[];
+  },
+>(review: T) {
+  return {
+    ...review,
+    rating: review.rating == null ? null : review.rating / 100,
+    basicCheckReasons: review.basicCheckReasons.map((check) => ({
+      basicCheckReasonId: check.basicCheckReasonId,
+      note: check.note,
+      code: check.basicCheckReason.code,
+      label: check.basicCheckReason.label,
+      level: check.basicCheckReason.level,
+    })),
+  };
+}
+
+export function mapReviewStats(row: RawReviewStats | undefined): ReviewStats {
+  return {
+    reviewCount: Number(row?.review_count ?? 0n),
+    avgRating: row?.avg_rating == null ? null : row.avg_rating / 100,
+    minRating: row?.min_rating == null ? null : row.min_rating / 100,
+    maxRating: row?.max_rating == null ? null : row.max_rating / 100,
+    stdevRating: row?.stdev_rating == null ? null : row.stdev_rating / 100,
   };
 }
 
@@ -155,10 +304,8 @@ export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto)
 
   const term = query.search?.trim();
   if (term) {
-    const similarityChecks = SEARCHED_COLUMNS.map(
-      (column) => Prisma.sql`similarity(${column}, ${term}) > ${SIMILARITY_THRESHOLD}`,
-    );
-    fragments.push(Prisma.sql`(${Prisma.join(similarityChecks, ' OR ')})`);
+    const matchChecks = SEARCHED_COLUMNS.map((column) => isMatchColumn(column, term));
+    fragments.push(Prisma.sql`(${Prisma.join(matchChecks, ' OR ')})`);
   }
 
   return fragments;
@@ -168,7 +315,11 @@ export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto)
 export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listForEvent(eventId: string, query: ReviewsQueryDto): Promise<ReviewsResponse> {
+  async listForEvent(
+    eventId: string,
+    userId: string,
+    query: ReviewsQueryDto,
+  ): Promise<ReviewsResponse> {
     const term = query.search?.trim() || null;
     const baseFragments = buildBaseWhereFragments(eventId, query);
     const baseWhere = Prisma.join(baseFragments, ' AND ');
@@ -196,7 +347,7 @@ export class ReviewsService {
     const orderFragments = [...DEFAULT_ORDER_FRAGMENTS];
     if (term) {
       const rankExpr = Prisma.sql`GREATEST(${Prisma.join(
-        SEARCHED_COLUMNS.map((column) => Prisma.sql`similarity(${column}, ${term})`),
+        SEARCHED_COLUMNS.map((column) => rankColumn(column, term)),
         ', ',
       )})`;
       orderFragments.unshift(Prisma.sql`(${rankExpr}) DESC`);
@@ -228,19 +379,14 @@ export class ReviewsService {
           review_stats.avg_rating         AS "avgRating",
           review_stats.min_rating         AS "minRating",
           review_stats.max_rating         AS "maxRating",
-          review_stats.stdev_rating       AS "stdevRating"
+          review_stats.stdev_rating       AS "stdevRating",
+          EXISTS (
+            SELECT 1 FROM reviews r2
+            WHERE r2."submissionId" = s."fileId" AND r2."reviewerId" = ${userId}
+          )                                AS "hasOwnReview"
         FROM submissions s
         JOIN charts c ON c."submissionId" = s."fileId"
-        JOIN LATERAL (
-          SELECT
-            COUNT(*)             AS review_count,
-            AVG(rating)::float8  AS avg_rating,
-            MIN(rating)          AS min_rating,
-            MAX(rating)          AS max_rating,
-            STDDEV_POP(rating)   AS stdev_rating
-          FROM reviews r
-          WHERE r."chartHash" = c.hash
-        ) review_stats ON true
+        JOIN LATERAL (${buildReviewStatsFragment(Prisma.sql`c.hash`)}) review_stats ON true
         WHERE ${rowsWhere}
         ORDER BY ${orderBy}
       `,
@@ -268,5 +414,165 @@ export class ReviewsService {
       meterBounds: minMeter != null && maxMeter != null ? { min: minMeter, max: maxMeter } : null,
       totalCount: Number(totalCountRows[0]?.count ?? 0),
     };
+  }
+
+  // Upsert semantics via Review's own @@unique([submissionId, reviewerId]) - always scoped to
+  // reviewerId = the calling user, so "only the author can edit their own review" holds by
+  // construction rather than needing a separate ownership check.
+  async upsertOwnReview(eventId: string, fileId: string, reviewerId: string, dto: UpsertReviewDto) {
+    const submission = await this.prisma.submission.findUnique({
+      where: { fileId },
+      include: { chart: true },
+    });
+    if (!submission || submission.eventId !== eventId) {
+      throw new NotFoundException(`No submission with id "${fileId}"`);
+    }
+    if (!submission.chart) {
+      throw new BadRequestException('Cannot review a submission with no parsed chart');
+    }
+
+    const upserted = await this.upsertReviewTransaction(fileId, reviewerId, submission.chart, dto);
+    return mapUpsertedReview(upserted);
+  }
+
+  private upsertReviewTransaction(
+    fileId: string,
+    reviewerId: string,
+    chart: Chart,
+    dto: UpsertReviewDto,
+  ) {
+    // Snapshotted onto the Review row alongside chartHash below - see the schema comment
+    // on Review.chartTitle for why.
+    const chartSnapshot = {
+      chartHash: chart.hash,
+      chartTitle: chart.title,
+      chartTitleRomaji: chart.titleRomaji,
+      chartSubtitle: chart.subtitle,
+      chartSubtitleRomaji: chart.subtitleRomaji,
+      chartArtist: chart.artist,
+      chartArtistRomaji: chart.artistRomaji,
+      chartPlaystyle: chart.playstyle,
+      chartDifficulty: chart.difficulty,
+      chartMeter: chart.meter,
+    };
+
+    const nextFields: ReviewFields = {
+      rating: dto.rating == null ? null : Math.round(dto.rating * 100),
+      passing: dto.passing ?? null,
+      scoring: dto.scoring ?? null,
+      notes: dto.notes ?? null,
+      basicChecks: (dto.basicChecks ?? []).map((check) => ({
+        basicCheckReasonId: check.basicCheckReasonId,
+        note: check.note ?? null,
+      })),
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.review.findUnique({
+        where: { submissionId_reviewerId: { submissionId: fileId, reviewerId } },
+        include: { basicCheckReasons: true },
+      });
+
+      const reviewInclude = { basicCheckReasons: { include: { basicCheckReason: true } } };
+
+      if (existing) {
+        const existingFields: ReviewFields = {
+          rating: existing.rating,
+          passing: existing.passing,
+          scoring: existing.scoring,
+          notes: existing.notes,
+          basicChecks: existing.basicCheckReasons.map((check) => ({
+            basicCheckReasonId: check.basicCheckReasonId,
+            note: check.note,
+          })),
+        };
+
+        if (!reviewFieldsChanged(existingFields, nextFields)) {
+          return tx.review.findUniqueOrThrow({
+            where: { id: existing.id },
+            include: reviewInclude,
+          });
+        }
+
+        const revision = await tx.reviewRevision.create({
+          data: {
+            reviewId: existing.id,
+            chartHash: existing.chartHash,
+            chartTitle: existing.chartTitle,
+            chartTitleRomaji: existing.chartTitleRomaji,
+            chartSubtitle: existing.chartSubtitle,
+            chartSubtitleRomaji: existing.chartSubtitleRomaji,
+            chartArtist: existing.chartArtist,
+            chartArtistRomaji: existing.chartArtistRomaji,
+            chartPlaystyle: existing.chartPlaystyle,
+            chartDifficulty: existing.chartDifficulty,
+            chartMeter: existing.chartMeter,
+            rating: existing.rating,
+            passing: existing.passing,
+            scoring: existing.scoring,
+            notes: existing.notes,
+            supersededById: reviewerId,
+          },
+        });
+        if (existing.basicCheckReasons.length > 0) {
+          await tx.reviewRevisionBasicCheck.createMany({
+            data: existing.basicCheckReasons.map((check) => ({
+              reviewRevisionId: revision.id,
+              basicCheckReasonId: check.basicCheckReasonId,
+              note: check.note,
+            })),
+          });
+        }
+
+        // Saving always re-snapshots chartHash (and the rest of the chart identity fields)
+        // to the chart's current state - any edit re-affirms the review still applies to
+        // the chart as it stands today, un-staling it.
+        await tx.review.update({
+          where: { id: existing.id },
+          data: {
+            ...chartSnapshot,
+            rating: nextFields.rating,
+            passing: nextFields.passing,
+            scoring: nextFields.scoring,
+            notes: nextFields.notes,
+          },
+        });
+        await tx.reviewBasicCheck.deleteMany({ where: { reviewId: existing.id } });
+        if (nextFields.basicChecks.length > 0) {
+          await tx.reviewBasicCheck.createMany({
+            data: nextFields.basicChecks.map((check) => ({
+              reviewId: existing.id,
+              basicCheckReasonId: check.basicCheckReasonId,
+              note: check.note,
+            })),
+          });
+        }
+
+        return tx.review.findUniqueOrThrow({ where: { id: existing.id }, include: reviewInclude });
+      }
+
+      const created = await tx.review.create({
+        data: {
+          submissionId: fileId,
+          reviewerId,
+          ...chartSnapshot,
+          rating: nextFields.rating,
+          passing: nextFields.passing,
+          scoring: nextFields.scoring,
+          notes: nextFields.notes,
+        },
+      });
+      if (nextFields.basicChecks.length > 0) {
+        await tx.reviewBasicCheck.createMany({
+          data: nextFields.basicChecks.map((check) => ({
+            reviewId: created.id,
+            basicCheckReasonId: check.basicCheckReasonId,
+            note: check.note,
+          })),
+        });
+      }
+
+      return tx.review.findUniqueOrThrow({ where: { id: created.id }, include: reviewInclude });
+    });
   }
 }

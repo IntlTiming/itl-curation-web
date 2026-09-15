@@ -1,7 +1,11 @@
 import { Playstyle } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import type { ReviewsQueryDto } from './dto/reviews-query.dto.js';
-import { buildBaseWhereFragments, mapRawReviewRow } from './reviews.service.js';
+import {
+  buildBaseWhereFragments,
+  mapRawReviewRow,
+  reviewFieldsChanged,
+} from './reviews.service.js';
 
 const BASE_QUERY: ReviewsQueryDto = {
   playstyle: Playstyle.SINGLE,
@@ -72,6 +76,37 @@ describe('buildBaseWhereFragments', () => {
     expect(texts.some((t) => t.includes('similarity'))).toBe(false);
     expect(fragments).toHaveLength(3);
   });
+
+  // similarity() can't score a 1-2 character term meaningfully (see SHORT_SEARCH_TERM_LENGTH's
+  // comment) - below that length the query falls back to a plain substring ILIKE instead.
+  it('uses an OR-joined ILIKE fragment across all 8 searched columns for a 1-character term', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: 'a' });
+    const texts = fragmentTexts(fragments);
+    const likeFragment = texts.find((t) => t.includes('ILIKE'));
+
+    expect(likeFragment).toBeDefined();
+    expect(texts.some((t) => t.includes('similarity'))).toBe(false);
+    expect(likeFragment?.match(/ILIKE/g)).toHaveLength(8);
+    expect(likeFragment).toContain(' OR ');
+
+    const values = fragments.flatMap((f) => f.values);
+    expect(values).toContain('%a%');
+  });
+
+  it('still uses similarity for a 3-character term (the ILIKE fallback only applies below that)', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: 'abc' });
+    const texts = fragmentTexts(fragments);
+
+    expect(texts.some((t) => t.includes('similarity'))).toBe(true);
+    expect(texts.some((t) => t.includes('ILIKE'))).toBe(false);
+  });
+
+  it("escapes the short term's own LIKE wildcard characters so they match literally", () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '%_' });
+    const values = fragments.flatMap((f) => f.values);
+
+    expect(values).toContain('%\\%\\_%');
+  });
 });
 
 describe('mapRawReviewRow', () => {
@@ -100,6 +135,7 @@ describe('mapRawReviewRow', () => {
       minRating: 150,
       maxRating: 200,
       stdevRating: 25.0,
+      hasOwnReview: true,
     });
 
     expect(row).toEqual({
@@ -128,6 +164,7 @@ describe('mapRawReviewRow', () => {
       minRating: 1.5,
       maxRating: 2,
       stdevRating: 0.25,
+      hasOwnReview: true,
     });
     expect(typeof row.reviewCount).toBe('number');
     expect(typeof row.avgRating).toBe('number');
@@ -158,12 +195,57 @@ describe('mapRawReviewRow', () => {
       minRating: null,
       maxRating: null,
       stdevRating: null,
+      hasOwnReview: false,
     });
 
     expect(row.consentToPublicReview).toBeNull();
+    expect(row.hasOwnReview).toBe(false);
     expect(row.avgRating).toBeNull();
     expect(row.minRating).toBeNull();
     expect(row.maxRating).toBeNull();
     expect(row.stdevRating).toBeNull();
+  });
+});
+
+describe('reviewFieldsChanged', () => {
+  const BASE = { rating: 150, passing: 3, scoring: 7, notes: 'looks good', basicChecks: [] };
+
+  it('returns false when every field is identical, regardless of key order', () => {
+    expect(reviewFieldsChanged(BASE, { ...BASE })).toBe(false);
+  });
+
+  it('returns true when a scalar field differs', () => {
+    expect(reviewFieldsChanged(BASE, { ...BASE, rating: 200 })).toBe(true);
+    expect(reviewFieldsChanged(BASE, { ...BASE, notes: 'changed' })).toBe(true);
+  });
+
+  it('is insensitive to basicChecks array order', () => {
+    const a = {
+      ...BASE,
+      basicChecks: [
+        { basicCheckReasonId: 'b', note: null },
+        { basicCheckReasonId: 'a', note: null },
+      ],
+    };
+    const b = {
+      ...BASE,
+      basicChecks: [
+        { basicCheckReasonId: 'a', note: null },
+        { basicCheckReasonId: 'b', note: null },
+      ],
+    };
+    expect(reviewFieldsChanged(a, b)).toBe(false);
+  });
+
+  it('returns true when a basicCheck note differs', () => {
+    const a = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: 'measure 12' }] };
+    const b = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: 'measure 13' }] };
+    expect(reviewFieldsChanged(a, b)).toBe(true);
+  });
+
+  it('returns true when the basicChecks set has a different size', () => {
+    const a = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: null }] };
+    const b = { ...BASE, basicChecks: [] };
+    expect(reviewFieldsChanged(a, b)).toBe(true);
   });
 });

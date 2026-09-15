@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import type { User } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BASIC_CHECK_REASON_SEED_DATA } from './basic-check-reasons.seed-data.js';
 import type { CreateEventDto } from './dto/create-event.dto.js';
 import { TECH_TAG_SEED_DATA } from './tech-tags.seed-data.js';
 
@@ -62,6 +63,11 @@ export class EventsService {
         for (const tag of TECH_TAG_SEED_DATA) {
           await tx.techTag.upsert({ where: { label: tag.label }, update: {}, create: tag });
         }
+        // BasicCheckReason is event-scoped (unlike the global TechTag above), so every new
+        // event gets its own fresh copy of the starter set rather than an upsert.
+        await tx.basicCheckReason.createMany({
+          data: BASIC_CHECK_REASON_SEED_DATA.map((reason) => ({ ...reason, eventId: event.id })),
+        });
         return event;
       });
     } catch (err) {

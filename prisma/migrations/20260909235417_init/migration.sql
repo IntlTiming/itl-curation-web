@@ -1,3 +1,6 @@
+-- CreateExtension
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
 -- CreateEnum
 CREATE TYPE "EventRoleType" AS ENUM ('REVIEWER', 'ADMIN');
 
@@ -15,6 +18,9 @@ CREATE TYPE "ConsentToPublicReview" AS ENUM ('CONSENTS', 'DOES_NOT_CONSENT', 'NO
 
 -- CreateEnum
 CREATE TYPE "TechCategory" AS ENUM ('BXF', 'TECH', 'NOTECH');
+
+-- CreateEnum
+CREATE TYPE "BasicCheckLevel" AS ENUM ('WARNING', 'DISQUALIFIED');
 
 -- CreateEnum
 CREATE TYPE "DisqualificationStatus" AS ENUM ('ACTIVE', 'POSSIBLY_RESOLVED', 'CLEARED');
@@ -79,6 +85,8 @@ CREATE TABLE "submissions" (
     "songDir" TEXT,
     "bannerSlug" TEXT NOT NULL,
     "isInternal" BOOLEAN NOT NULL DEFAULT false,
+    "submittedAt" TIMESTAMP(3) NOT NULL,
+    "isIgnored" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "singleTechTagId" TEXT,
@@ -153,6 +161,8 @@ CREATE TABLE "basic_check_reasons" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "label" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "level" "BasicCheckLevel" NOT NULL,
     "eventId" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
 
@@ -171,6 +181,15 @@ CREATE TABLE "reviews" (
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "chartTitle" TEXT NOT NULL,
+    "chartTitleRomaji" TEXT NOT NULL,
+    "chartSubtitle" TEXT NOT NULL,
+    "chartSubtitleRomaji" TEXT NOT NULL,
+    "chartArtist" TEXT NOT NULL,
+    "chartArtistRomaji" TEXT NOT NULL,
+    "chartPlaystyle" "Playstyle" NOT NULL,
+    "chartDifficulty" "Difficulty" NOT NULL,
+    "chartMeter" INTEGER NOT NULL,
 
     CONSTRAINT "reviews_pkey" PRIMARY KEY ("id")
 );
@@ -179,6 +198,7 @@ CREATE TABLE "reviews" (
 CREATE TABLE "review_basic_checks" (
     "reviewId" TEXT NOT NULL,
     "basicCheckReasonId" TEXT NOT NULL,
+    "note" TEXT,
 
     CONSTRAINT "review_basic_checks_pkey" PRIMARY KEY ("reviewId","basicCheckReasonId")
 );
@@ -194,6 +214,15 @@ CREATE TABLE "review_revisions" (
     "notes" TEXT,
     "supersededAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "supersededById" TEXT NOT NULL,
+    "chartTitle" TEXT NOT NULL,
+    "chartTitleRomaji" TEXT NOT NULL,
+    "chartSubtitle" TEXT NOT NULL,
+    "chartSubtitleRomaji" TEXT NOT NULL,
+    "chartArtist" TEXT NOT NULL,
+    "chartArtistRomaji" TEXT NOT NULL,
+    "chartPlaystyle" "Playstyle" NOT NULL,
+    "chartDifficulty" "Difficulty" NOT NULL,
+    "chartMeter" INTEGER NOT NULL,
 
     CONSTRAINT "review_revisions_pkey" PRIMARY KEY ("id")
 );
@@ -202,6 +231,7 @@ CREATE TABLE "review_revisions" (
 CREATE TABLE "review_revision_basic_checks" (
     "reviewRevisionId" TEXT NOT NULL,
     "basicCheckReasonId" TEXT NOT NULL,
+    "note" TEXT,
 
     CONSTRAINT "review_revision_basic_checks_pkey" PRIMARY KEY ("reviewRevisionId","basicCheckReasonId")
 );
@@ -254,10 +284,34 @@ CREATE UNIQUE INDEX "event_roles_eventId_userId_role_key" ON "event_roles"("even
 CREATE INDEX "submissions_eventId_idx" ON "submissions"("eventId");
 
 -- CreateIndex
+CREATE INDEX "submissions_stepartist_trgm_idx" ON "submissions" USING GIN ("stepartist" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "submissions_pack_trgm_idx" ON "submissions" USING GIN ("pack" gin_trgm_ops);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "charts_submissionId_key" ON "charts"("submissionId");
 
 -- CreateIndex
 CREATE INDEX "charts_hash_idx" ON "charts"("hash");
+
+-- CreateIndex
+CREATE INDEX "charts_title_trgm_idx" ON "charts" USING GIN ("title" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_title_romaji_trgm_idx" ON "charts" USING GIN ("titleRomaji" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_subtitle_trgm_idx" ON "charts" USING GIN ("subtitle" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_subtitle_romaji_trgm_idx" ON "charts" USING GIN ("subtitleRomaji" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_artist_trgm_idx" ON "charts" USING GIN ("artist" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_artist_romaji_trgm_idx" ON "charts" USING GIN ("artistRomaji" gin_trgm_ops);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "tech_tags_code_key" ON "tech_tags"("code");
