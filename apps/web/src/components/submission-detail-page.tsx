@@ -3,14 +3,15 @@ import { ArrowLeft, ChevronDown, RefreshCw, SquareCheck, SquarePen } from 'lucid
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { chartBadgeLabel, ChartDetail, DifficultyBadge } from '@/components/chart-detail';
+import { CommentsPanel } from '@/components/comments-panel';
 import { Loading } from '@/components/loading';
+import { MarkdownContent } from '@/components/markdown-content';
 import { ReviewModal } from '@/components/review-modal';
 import {
   CmoddabilityIndicator,
   formatRating,
   PublicConsentIndicator,
 } from '@/components/reviews-table';
-import { ReviewNotes } from '@/components/review-notes';
 import { shortenTechTag, SubmissionDetail } from '@/components/submission-detail';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -179,7 +180,7 @@ function ReviewCard({ review }: { review: SubmissionDetailReview }) {
         </div>
       )}
 
-      <ReviewNotes markdown={review.notes} />
+      <MarkdownContent markdown={review.notes} />
     </div>
   );
 }
@@ -259,44 +260,50 @@ export function SubmissionDetailPage() {
         )}
       </div>
 
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span>
-              <span className="text-muted-foreground">Reviews:</span> {stats?.reviewCount ?? 0}
-            </span>
-            <span>
-              <span className="text-muted-foreground">Avg. rating:</span>{' '}
-              {formatRating(stats?.avgRating ?? null)}
-            </span>
-            <span>
-              <span className="text-muted-foreground">Min:</span>{' '}
-              {formatRating(stats?.minRating ?? null)}
-            </span>
-            <span>
-              <span className="text-muted-foreground">Max:</span>{' '}
-              {formatRating(stats?.maxRating ?? null)}
-            </span>
-            <span>
-              <span className="text-muted-foreground">Stdev:</span>{' '}
-              {formatRating(stats?.stdevRating ?? null)}
-            </span>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span>
+                <span className="text-muted-foreground">Reviews:</span> {stats?.reviewCount ?? 0}
+              </span>
+              <span>
+                <span className="text-muted-foreground">Avg. rating:</span>{' '}
+                {formatRating(stats?.avgRating ?? null)}
+              </span>
+              <span>
+                <span className="text-muted-foreground">Min:</span>{' '}
+                {formatRating(stats?.minRating ?? null)}
+              </span>
+              <span>
+                <span className="text-muted-foreground">Max:</span>{' '}
+                {formatRating(stats?.maxRating ?? null)}
+              </span>
+              <span>
+                <span className="text-muted-foreground">Stdev:</span>{' '}
+                {formatRating(stats?.stdevRating ?? null)}
+              </span>
+            </div>
+            {submission.chart && (
+              <Button onClick={() => setReviewModalOpen(true)}>
+                {ownReview ? <SquareCheck /> : <SquarePen />}
+                {ownReview ? 'Edit your review' : 'Add a review'}
+              </Button>
+            )}
           </div>
-          {submission.chart && (
-            <Button onClick={() => setReviewModalOpen(true)}>
-              {ownReview ? <SquareCheck /> : <SquarePen />}
-              {ownReview ? 'Edit your review' : 'Add a review'}
-            </Button>
-          )}
+
+          <div className="flex flex-col gap-2">
+            {reviews.length === 0 && (
+              <p className="text-muted-foreground text-sm">No reviews yet for this chart.</p>
+            )}
+            {reviews.map((review) => (
+              <ReviewCard key={review.id} review={review} />
+            ))}
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {reviews.length === 0 && (
-            <p className="text-muted-foreground text-sm">No reviews yet for this chart.</p>
-          )}
-          {reviews.map((review) => (
-            <ReviewCard key={review.id} review={review} />
-          ))}
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          {slug && fileId && <CommentsPanel slug={slug} fileId={fileId} />}
         </div>
       </div>
 
