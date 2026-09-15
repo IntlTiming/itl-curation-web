@@ -84,6 +84,8 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           onFiltersChange={setFilters}
           onReset={resetFilters}
           meterBounds={result.status === 'loaded' ? result.meterBounds : null}
+          sort={sort}
+          onSortChange={setSort}
         />
         <ColumnsDialog
           order={sanitizedColumnOrder}

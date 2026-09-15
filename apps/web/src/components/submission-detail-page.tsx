@@ -14,7 +14,7 @@ import {
   RatingCell,
   StdevCell,
 } from '@/components/reviews-table';
-import { shortenTechTag, SubmissionDetail } from '@/components/submission-detail';
+import { SubmissionDetail } from '@/components/submission-detail';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ import {
 } from '@/hooks/use-submission-detail';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
+import { shortenTechTag } from '@/lib/tech-tags';
 
 // The only submission-form "focus" value where singleTechTag is meaningful - see
 // submissions-import.mapper.spec.ts's sample entry, which pairs this exact focus string

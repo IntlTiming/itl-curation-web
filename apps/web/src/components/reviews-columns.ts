@@ -8,6 +8,7 @@ export type ReviewsColumnKey =
   | 'pack'
   | 'stepartist'
   | 'submitter'
+  | 'techTags'
   | 'reviewCount'
   | 'avgRating'
   | 'minRating'
@@ -27,6 +28,7 @@ export const REVIEWS_COLUMN_ORDER: ReviewsColumnKey[] = [
   'pack',
   'stepartist',
   'submitter',
+  'techTags',
   'reviewCount',
   'avgRating',
   'minRating',
@@ -68,6 +70,7 @@ export const REVIEWS_COLUMN_LABELS: Record<ReviewsColumnKey, string> = {
   pack: 'Pack',
   stepartist: 'Stepartist',
   submitter: 'Submitter',
+  techTags: 'Tech Tags',
   reviewCount: '# reviews',
   avgRating: 'Avg. rating',
   minRating: 'Min. rating',
@@ -88,6 +91,7 @@ export const DEFAULT_REVIEWS_COLUMN_VISIBILITY: ReviewsColumnVisibility = {
   pack: true,
   stepartist: true,
   submitter: true,
+  techTags: false,
   reviewCount: true,
   avgRating: true,
   minRating: false,

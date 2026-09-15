@@ -6,10 +6,12 @@ function storageKey(slug: string): string {
   return `itl-reviews-sort:${slug}`;
 }
 
-// First-visit default (and what a cleared/never-set localStorage value falls back to) - most
-// recently active submissions surface first, rather than the table's unsorted multi-key
-// server order (playstyle -> meter -> difficulty -> title). Exported so reviews-panel.tsx can
-// fall back to it when the user hides the column currently being sorted by.
+// First-visit default, and what a never-set localStorage value falls back to - most recently
+// active submissions surface first, rather than the table's unsorted multi-key server order
+// (playstyle -> meter -> difficulty -> title). An explicitly cleared sort (the user's 3rd-click
+// "no sort" state) does NOT fall back to this on reload - see UNSET below. Exported so
+// reviews-panel.tsx can fall back to it when the user hides the column currently being sorted
+// by.
 export const DEFAULT_SORT = {
   column: 'lastActivity',
   direction: 'desc',
@@ -34,15 +36,23 @@ function parseFromParams(params: URLSearchParams): SortState {
   return { column, direction: params.get('sortDirection') === 'desc' ? 'desc' : 'asc' };
 }
 
-function readFromLocalStorage(slug: string): SortState {
+// Distinguishes "never saved anything" from "explicitly saved as unsorted" - localStorage.
+// getItem returns null for both an absent key and (in principle) a stored "null" string, so a
+// plain SortState-typed return can't tell them apart. UNSET stands for the former; the latter
+// reads back as the real value `null`, which callers should honor rather than replace with
+// DEFAULT_SORT.
+const UNSET = Symbol('reviews-sort-unset');
+
+function readFromLocalStorage(slug: string): SortState | typeof UNSET {
   try {
     const raw = localStorage.getItem(storageKey(slug));
-    if (!raw) return null;
+    if (raw === null) return UNSET;
     const parsed = JSON.parse(raw) as { column?: string; direction?: string } | null;
-    if (!parsed?.column || !isSortColumn(parsed.column)) return null;
+    if (parsed === null) return null;
+    if (!parsed.column || !isSortColumn(parsed.column)) return UNSET;
     return { column: parsed.column, direction: parsed.direction === 'desc' ? 'desc' : 'asc' };
   } catch {
-    return null;
+    return UNSET;
   }
 }
 
@@ -67,7 +77,8 @@ export function useReviewsSort(slug: string) {
 
   const [sort, setSortState] = useState<SortState>(() => {
     if (searchParams.has('sortColumn')) return parseFromParams(searchParams);
-    return readFromLocalStorage(slug) ?? DEFAULT_SORT;
+    const stored = readFromLocalStorage(slug);
+    return stored === UNSET ? DEFAULT_SORT : stored;
   });
 
   // Mirrors whatever the initial state turned out to be into the URL once, so the current
@@ -89,8 +100,12 @@ export function useReviewsSort(slug: string) {
     (next: SortState) => {
       setSortState(next);
       try {
-        if (next) localStorage.setItem(storageKey(slug), JSON.stringify(next));
-        else localStorage.removeItem(storageKey(slug));
+        // Always writes, even for `null` - JSON.stringify(null) is the literal string "null",
+        // which readFromLocalStorage tells apart from an absent key (see UNSET). Using
+        // removeItem here instead would make an explicit "no sort" indistinguishable from
+        // never having saved a sort at all, and the next page load would silently replace it
+        // with DEFAULT_SORT.
+        localStorage.setItem(storageKey(slug), JSON.stringify(next));
       } catch {
         // localStorage unavailable - sort still works for this session, just won't stick.
       }

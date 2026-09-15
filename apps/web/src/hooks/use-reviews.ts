@@ -32,6 +32,9 @@ export type ReviewsRow = {
   cmodPreference: 'CMOD_OKAY' | 'NO_CMOD' | 'NOT_STEPARTIST';
   consentToPublicReview: 'CONSENTS' | 'DOES_NOT_CONSENT' | 'NOT_STEPARTIST' | null;
   isIgnored: boolean;
+  // TechTag labels this submission has claimed - shortened to codes for display (see
+  // @/lib/tech-tags's shortenTechTag).
+  techTags: string[];
   chart: ReviewsChart;
   reviewCount: number;
   avgRating: number | null;
@@ -80,6 +83,7 @@ function buildQueryString(filters: ReviewsFilters): string {
   if (filters.maxMeter != null) params.set('maxMeter', String(filters.maxMeter));
   if (filters.unreviewedOnly) params.set('unreviewedOnly', 'true');
   if (filters.publiclyReviewableOnly) params.set('publiclyReviewableOnly', 'true');
+  if (filters.techTags.length > 0) params.set('techTags', filters.techTags.join(','));
   return params.toString();
 }
 

@@ -23,6 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
 import { RATING_GRADIENT, STDEV_GRADIENT } from '@/lib/gradient-color';
+import { shortenTechTag } from '@/lib/tech-tags';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
 // Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
@@ -115,6 +116,19 @@ export function StdevCell({ value }: { value: number | null }) {
     <GradientBadge value={value} {...STDEV_GRADIENT}>
       {formatRating(value)}
     </GradientBadge>
+  );
+}
+
+function TechTagsCell({ techTags }: { techTags: string[] }) {
+  if (techTags.length === 0) return '—';
+  return (
+    <div className="flex flex-wrap gap-1">
+      {techTags.map((label) => (
+        <Badge key={label} variant="outline">
+          {shortenTechTag(label)}
+        </Badge>
+      ))}
+    </div>
   );
 }
 
@@ -359,6 +373,7 @@ export function ReviewsTable({
     pack: (row) => row.pack,
     stepartist: (row) => row.stepartist,
     submitter: (row) => row.submitter,
+    techTags: (row) => <TechTagsCell techTags={row.techTags} />,
     reviewCount: (row) => row.reviewCount,
     avgRating: (row) => <RatingCell value={row.avgRating} />,
     minRating: (row) => <RatingCell value={row.minRating} />,
