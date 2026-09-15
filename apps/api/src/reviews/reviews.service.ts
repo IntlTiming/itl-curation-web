@@ -651,8 +651,15 @@ export class ReviewsService {
         };
 
         if (!reviewFieldsChanged(existingFields, nextFields)) {
-          const unchanged = await tx.review.findUniqueOrThrow({
+          // No ReviewRevision here - nothing about the review's own opinion changed, so there's
+          // nothing worth auditing. But the chart identity (chartHash included) still gets
+          // re-snapshotted: resaving an unmodified review is itself an explicit re-affirmation
+          // that it still applies to the chart as it stands today, and should un-stale it the
+          // same as an edit does below - otherwise a reviewer who resaves without touching any
+          // field would see the review stay marked outdated indefinitely.
+          const unchanged = await tx.review.update({
             where: { id: existing.id },
+            data: { ...chartSnapshot },
             include: reviewInclude,
           });
           await this.recomputeLastReviewAt(tx, fileId);
