@@ -15,7 +15,7 @@ export function EventDetail() {
   const { slug } = useParams<{ slug: string }>();
   const result = useEvent(slug ?? '');
   const [searchParams, setSearchParams] = useSearchParams();
-  usePageBreadcrumb(result.status === 'loaded' ? result.event.name : null);
+  usePageBreadcrumb(result.status === 'loaded' ? [{ label: result.event.name }] : []);
 
   if (result.status === 'loading') {
     return <Loading message="Loading event…" />;

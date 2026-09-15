@@ -248,9 +248,13 @@ const FIXED_COLUMN_KEYS = [
 export function ChartDetail({
   chart,
   previousChart,
+  hideHeading,
 }: {
   chart: ChartFields;
   previousChart?: ChartFields | null;
+  // Set when a wrapping element (e.g. a collapsible section's own trigger label) already
+  // identifies this block as "Chart" - skips the redundant internal heading.
+  hideHeading?: boolean;
 }) {
   const difficultyRow = {
     key: 'difficulty',
@@ -319,7 +323,7 @@ export function ChartDetail({
 
   return (
     <div className="py-2">
-      <p className="mb-1 text-left text-xs font-semibold">Chart</p>
+      {!hideHeading && <p className="mb-1 text-left text-xs font-semibold">Chart</p>}
       {/* Fixed 4 columns, not responsive - this expands inline in a curator's review table,
           a desktop-only workflow, so it isn't worth collapsing for narrow viewports. */}
       <div className="grid grid-cols-4 gap-x-6 gap-y-1 text-xs">
