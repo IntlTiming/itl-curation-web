@@ -80,6 +80,10 @@ type RawReviewRow = {
   hasOwnReview: boolean;
   commentCount: bigint;
   lastActivity: Date | null;
+  // TechTag.label values (not codes - shortened to codes for display client-side, same as
+  // submission-detail's techTags field) the submission has claimed, alphabetical for a stable
+  // display order.
+  techTags: string[];
 };
 
 // A union member of ReviewsRow.basicChecks - deduped by BasicCheckReason across every active
@@ -99,6 +103,9 @@ export type ReviewsRow = {
   cmodPreference: CmodPreference;
   consentToPublicReview: ConsentToPublicReview | null;
   isIgnored: boolean;
+  // TechTag labels this submission has claimed (submissionId-scoped, like commentCount/
+  // lastActivity above - not chart-hash scoped). Alphabetical, for a stable display order.
+  techTags: string[];
   chart: {
     hash: string;
     title: string;
@@ -156,6 +163,7 @@ export function mapRawReviewRow(row: RawReviewRow, basicChecks: ReviewsBasicChec
     cmodPreference: row.cmodPreference,
     consentToPublicReview: row.consentToPublicReview,
     isIgnored: row.isIgnored,
+    techTags: row.techTags,
     chart: {
       hash: row.hash,
       title: row.title,
@@ -311,6 +319,36 @@ const SEARCHED_COLUMNS = [
   Prisma.sql`s.pack`,
 ];
 
+// Per-submission tag-overlap stats against the currently-selected tech tag codes, used only for
+// the "best match" default ordering (see buildTechTagRankFragment) - never exposed in the SELECT
+// list since the frontend doesn't need to see match detail, only row order. Meant to be joined
+// in as a LATERAL correlated to s."fileId" (see listForEvent), aliased "tag_match".
+export function buildTechTagMatchFragment(techTagCodes: string[]): Prisma.Sql {
+  return Prisma.sql`
+    SELECT
+      COUNT(*) FILTER (WHERE tt.code IN (${Prisma.join(techTagCodes)})) AS overlap_count,
+      COUNT(*)                                                          AS claimed_count
+    FROM submission_tech_tags stt
+    JOIN tech_tags tt ON tt.id = stt."techTagId"
+    WHERE stt."submissionId" = s."fileId"
+  `;
+}
+
+// Ranks the currently-selected tech tags the same way search relevance ranks a term: a
+// submission whose full claimed tag SET exactly equals the selection (no more, no fewer) ranks
+// first, then by overlap count descending, then by extra/unrelated claimed-tag count ascending
+// (fewer extras is closer to an exact match). Only meaningful when buildTechTagMatchFragment's
+// LATERAL join (aliased tag_match) is present in the FROM clause - see listForEvent.
+export function buildTechTagRankFragment(techTagCodes: string[]): Prisma.Sql {
+  return Prisma.sql`
+    (CASE WHEN tag_match.overlap_count = tag_match.claimed_count
+               AND tag_match.claimed_count = ${techTagCodes.length}
+          THEN 0 ELSE 1 END) ASC,
+    tag_match.overlap_count DESC,
+    (tag_match.claimed_count - tag_match.overlap_count) ASC
+  `;
+}
+
 // Row order used whenever no user-triggered column sort is active: Playstyle single before
 // double (moot in practice since Playstyle is a forced single-select filter, but applied
 // for completeness), then meter, then difficulty slot in its natural (not alphabetical)
@@ -343,6 +381,17 @@ export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto)
 
   if (query.publiclyReviewableOnly) {
     fragments.push(Prisma.sql`s."consentToPublicReview" = 'CONSENTS'::"ConsentToPublicReview"`);
+  }
+
+  if (query.techTags.length > 0) {
+    fragments.push(Prisma.sql`
+      EXISTS (
+        SELECT 1 FROM submission_tech_tags stt
+        JOIN tech_tags tt ON tt.id = stt."techTagId"
+        WHERE stt."submissionId" = s."fileId"
+          AND tt.code IN (${Prisma.join(query.techTags)})
+      )
+    `);
   }
 
   const term = query.search?.trim();
@@ -395,7 +444,20 @@ export class ReviewsService {
       )})`;
       orderFragments.unshift(Prisma.sql`(${rankExpr}) DESC`);
     }
+    // Unshifted after (so it ends up before) the search-relevance rank above: a deliberate
+    // structured tag selection is a stronger "best match" signal than fuzzy free-text relevance
+    // when both are active at once.
+    if (query.techTags.length > 0) {
+      orderFragments.unshift(buildTechTagRankFragment(query.techTags));
+    }
     const orderBy = Prisma.join(orderFragments, ', ');
+
+    // Only joined when a tag filter is active - buildTechTagRankFragment's ORDER BY references
+    // are meaningless (and this LATERAL join unnecessary work) otherwise.
+    const techTagJoin =
+      query.techTags.length > 0
+        ? Prisma.sql`JOIN LATERAL (${buildTechTagMatchFragment(query.techTags)}) tag_match ON true`
+        : Prisma.sql``;
 
     const rawRows = await this.prisma.$queryRaw<RawReviewRow[]>(
       Prisma.sql`
@@ -429,10 +491,17 @@ export class ReviewsService {
           )                                AS "hasOwnReview",
           (SELECT COUNT(*) FROM comments cm WHERE cm."submissionId" = s."fileId")
                                            AS "commentCount",
-          GREATEST(s."lastReviewAt", s."lastCommentAt") AS "lastActivity"
+          GREATEST(s."lastReviewAt", s."lastCommentAt") AS "lastActivity",
+          (
+            SELECT COALESCE(array_agg(tt3.label ORDER BY tt3.label), ARRAY[]::text[])
+            FROM submission_tech_tags stt3
+            JOIN tech_tags tt3 ON tt3.id = stt3."techTagId"
+            WHERE stt3."submissionId" = s."fileId"
+          )                                AS "techTags"
         FROM submissions s
         JOIN charts c ON c."submissionId" = s."fileId"
         JOIN LATERAL (${buildReviewStatsFragment(Prisma.sql`c.hash`)}) review_stats ON true
+        ${techTagJoin}
         WHERE ${rowsWhere}
         ORDER BY ${orderBy}
       `,
@@ -582,8 +651,15 @@ export class ReviewsService {
         };
 
         if (!reviewFieldsChanged(existingFields, nextFields)) {
-          const unchanged = await tx.review.findUniqueOrThrow({
+          // No ReviewRevision here - nothing about the review's own opinion changed, so there's
+          // nothing worth auditing. But the chart identity (chartHash included) still gets
+          // re-snapshotted: resaving an unmodified review is itself an explicit re-affirmation
+          // that it still applies to the chart as it stands today, and should un-stale it the
+          // same as an edit does below - otherwise a reviewer who resaves without touching any
+          // field would see the review stay marked outdated indefinitely.
+          const unchanged = await tx.review.update({
             where: { id: existing.id },
+            data: { ...chartSnapshot },
             include: reviewInclude,
           });
           await this.recomputeLastReviewAt(tx, fileId);

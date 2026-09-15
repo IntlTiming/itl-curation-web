@@ -1,9 +1,27 @@
 import { Playstyle } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min, MaxLength } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  MaxLength,
+} from 'class-validator';
 
 function toBoolean({ value }: { value: unknown }): boolean {
   return value === true || value === 'true';
+}
+
+function toStringArray({ value }: { value: unknown }): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+  if (typeof value !== 'string' || value.trim() === '') return [];
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
 }
 
 export class ReviewsQueryDto {
@@ -37,4 +55,13 @@ export class ReviewsQueryDto {
   @Transform(toBoolean)
   @IsBoolean()
   publiclyReviewableOnly: boolean = false;
+
+  // TechTag.code values (e.g. "BR", "XO") from a comma-separated query param, e.g.
+  // ?techTags=BR,XO - deliberately unvalidated against the known 20 codes, same as `search`'s
+  // unvalidated free text; an unknown code just matches nothing.
+  @IsOptional()
+  @Transform(toStringArray)
+  @IsArray()
+  @IsString({ each: true })
+  techTags: string[] = [];
 }

@@ -4,6 +4,8 @@ import type { ReviewsQueryDto } from './dto/reviews-query.dto.js';
 import {
   buildBaseWhereFragments,
   buildReviewStatsFragment,
+  buildTechTagMatchFragment,
+  buildTechTagRankFragment,
   mapRawReviewRow,
   reviewFieldsChanged,
 } from './reviews.service.js';
@@ -12,6 +14,7 @@ const BASE_QUERY: ReviewsQueryDto = {
   playstyle: Playstyle.SINGLE,
   unreviewedOnly: false,
   publiclyReviewableOnly: false,
+  techTags: [],
 };
 
 function fragmentTexts(fragments: ReturnType<typeof buildBaseWhereFragments>): string[] {
@@ -53,6 +56,33 @@ describe('buildBaseWhereFragments', () => {
     expect(consentFragment).toBeDefined();
     expect(consentFragment).toContain('CONSENTS');
     expect(fragments).toHaveLength(4);
+  });
+
+  it('adds an EXISTS tag-overlap fragment when techTags is non-empty', () => {
+    const fragments = buildBaseWhereFragments('event-1', {
+      ...BASE_QUERY,
+      techTags: ['BR', 'XO'],
+    });
+    const texts = fragmentTexts(fragments);
+    const tagFragment = texts.find((t) => t.includes('submission_tech_tags'));
+
+    expect(tagFragment).toBeDefined();
+    expect(tagFragment).toContain('EXISTS');
+    expect(tagFragment).toContain('tech_tags');
+    expect(tagFragment).toContain('tt.code');
+    expect(fragments).toHaveLength(4);
+
+    const values = fragments.flatMap((f) => f.values);
+    expect(values).toContain('BR');
+    expect(values).toContain('XO');
+  });
+
+  it('does not add a tag fragment when techTags is empty', () => {
+    const fragments = buildBaseWhereFragments('event-1', BASE_QUERY);
+    const texts = fragmentTexts(fragments);
+
+    expect(texts.some((t) => t.includes('submission_tech_tags'))).toBe(false);
+    expect(fragments).toHaveLength(3);
   });
 
   it('adds an OR-joined similarity fragment across all 8 searched columns when a search term is present', () => {
@@ -127,6 +157,40 @@ describe('buildReviewStatsFragment', () => {
   });
 });
 
+describe('buildTechTagMatchFragment', () => {
+  it('counts overlap against the selected codes and the total claimed count separately', () => {
+    const fragment = buildTechTagMatchFragment(['BR', 'XO']);
+
+    expect(fragment.sql).toContain('FILTER (WHERE tt.code IN');
+    expect(fragment.sql).toContain('submission_tech_tags');
+    expect(fragment.sql).toContain('"techTagId"');
+    expect(fragment.sql).toContain('"submissionId"');
+    expect(fragment.values).toContain('BR');
+    expect(fragment.values).toContain('XO');
+  });
+});
+
+describe('buildTechTagRankFragment', () => {
+  it('ranks an exact tag-set match (overlap = claimed = selected count) into tier 0', () => {
+    const fragment = buildTechTagRankFragment(['BR', 'XO']);
+
+    expect(fragment.sql).toContain('tag_match.overlap_count = tag_match.claimed_count');
+    expect(fragment.values).toContain(2);
+  });
+
+  it('orders by overlap_count descending as the tiebreak after the exact-match tier', () => {
+    const fragment = buildTechTagRankFragment(['BR']);
+
+    expect(fragment.sql).toContain('tag_match.overlap_count DESC');
+  });
+
+  it('orders by extra-tag count ascending as the final tiebreak', () => {
+    const fragment = buildTechTagRankFragment(['BR']);
+
+    expect(fragment.sql).toContain('(tag_match.claimed_count - tag_match.overlap_count) ASC');
+  });
+});
+
 describe('mapRawReviewRow', () => {
   it('nests chart fields under a chart object and converts the bigint counts to numbers', () => {
     const row = mapRawReviewRow(
@@ -138,6 +202,7 @@ describe('mapRawReviewRow', () => {
         cmodPreference: 'NO_CMOD',
         consentToPublicReview: 'CONSENTS',
         isIgnored: false,
+        techTags: ['Brackets (includes Bracket Taps)', 'Crossovers'],
         hash: 'abc123',
         title: 'MIRROR',
         titleRomaji: '',
@@ -169,6 +234,7 @@ describe('mapRawReviewRow', () => {
       cmodPreference: 'NO_CMOD',
       consentToPublicReview: 'CONSENTS',
       isIgnored: false,
+      techTags: ['Brackets (includes Bracket Taps)', 'Crossovers'],
       chart: {
         hash: 'abc123',
         title: 'MIRROR',
@@ -209,6 +275,7 @@ describe('mapRawReviewRow', () => {
         cmodPreference: 'NO_CMOD',
         consentToPublicReview: null,
         isIgnored: false,
+        techTags: [],
         hash: 'abc123',
         title: 'MIRROR',
         titleRomaji: '',
@@ -254,6 +321,7 @@ describe('mapRawReviewRow', () => {
       cmodPreference: 'NO_CMOD' as const,
       consentToPublicReview: null,
       isIgnored: false,
+      techTags: [],
       hash: 'abc123',
       title: 'MIRROR',
       titleRomaji: '',

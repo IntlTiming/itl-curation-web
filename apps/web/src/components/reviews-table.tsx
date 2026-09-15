@@ -1,6 +1,6 @@
 import { cn } from 'cn';
 import { format } from 'date-fns';
-import { Ban, ChevronDown, ChevronUp, Globe, SquareCheck, SquarePen } from 'lucide-react';
+import { Ban, ChevronDown, ChevronUp, GlobeOff, SquareCheck, SquarePen } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
@@ -23,6 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
 import { RATING_GRADIENT, STDEV_GRADIENT } from '@/lib/gradient-color';
+import { shortenTechTag, sortTechTags } from '@/lib/tech-tags';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
 // Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
@@ -118,6 +119,32 @@ export function StdevCell({ value }: { value: number | null }) {
   );
 }
 
+// selectedTechTags is the Tech Tags filter's own selection (codes, e.g. "BR") - a submission's
+// claimed tag gets the filled/default badge style instead of the plain outline one when it's
+// one of the currently selected tags, so the tags driving the row's best-match rank are visible
+// at a glance instead of blending into the rest of the list.
+function TechTagsCell({
+  techTags,
+  selectedTechTags,
+}: {
+  techTags: string[];
+  selectedTechTags: string[];
+}) {
+  if (techTags.length === 0) return '—';
+  return (
+    <div className="flex flex-wrap gap-1">
+      {sortTechTags(techTags).map((label) => {
+        const code = shortenTechTag(label);
+        return (
+          <Badge key={label} variant={selectedTechTags.includes(code) ? 'default' : 'outline'}>
+            {code}
+          </Badge>
+        );
+      })}
+    </div>
+  );
+}
+
 function columnClassName(key: ReviewsColumnKey): string | undefined {
   return cn(NARROW_COLUMNS.has(key) && 'w-px', RIGHT_ALIGNED_COLUMNS.has(key) && 'text-right');
 }
@@ -205,10 +232,10 @@ export function CmoddabilityIndicator({
   );
 }
 
-// Shown inline after the title whenever the submitter has explicitly consented to their chart
-// being reviewed publicly. Silent for DOES_NOT_CONSENT/NOT_STEPARTIST/unanswered - absence
-// already communicates "not confirmed as publicly reviewable," mirroring how the
-// cmoddability icon stays silent for the default-okay case.
+// Shown inline after the title whenever the submitter has explicitly withheld public-review
+// consent or isn't the stepartist. Silent for CONSENTS/unanswered - absence already
+// communicates "no objection on file," mirroring how the cmoddability icon stays silent for
+// the default-okay case.
 export function PublicConsentIndicator({
   submitter,
   consentToPublicReview,
@@ -216,16 +243,19 @@ export function PublicConsentIndicator({
   submitter: string;
   consentToPublicReview: string | null;
 }) {
-  if (consentToPublicReview !== 'CONSENTS') return null;
+  if (consentToPublicReview !== 'DOES_NOT_CONSENT' && consentToPublicReview !== 'NOT_STEPARTIST') {
+    return null;
+  }
+  const tooltip =
+    consentToPublicReview === 'NOT_STEPARTIST'
+      ? `${submitter} is not the stepartist`
+      : `${submitter} does NOT consent to public review`;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Globe
-          className="text-muted-foreground size-3.5 shrink-0"
-          aria-label="Consented to public review"
-        />
+        <GlobeOff className="text-destructive size-3.5 shrink-0" aria-label={tooltip} />
       </TooltipTrigger>
-      <TooltipContent>{submitter} consented to public review</TooltipContent>
+      <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>
   );
 }
@@ -315,6 +345,7 @@ export function ReviewsTable({
   onEditReview,
   sort,
   onSortChange,
+  selectedTechTags,
 }: {
   rows: ReviewsRow[];
   columnOrder: ReviewsColumnKey[];
@@ -325,6 +356,9 @@ export function ReviewsTable({
   // filters are - see use-reviews-sort.ts.
   sort: SortState;
   onSortChange: (sort: SortState) => void;
+  // The Tech Tags filter's own selection (codes) - highlighted in the Tech Tags column so the
+  // tags driving a row's best-match rank stand out from the rest of its claimed tags.
+  selectedTechTags: string[];
 }) {
   const sortedRows = useMemo(() => applySort(rows, sort), [rows, sort]);
 
@@ -356,6 +390,7 @@ export function ReviewsTable({
     pack: (row) => row.pack,
     stepartist: (row) => row.stepartist,
     submitter: (row) => row.submitter,
+    techTags: (row) => <TechTagsCell techTags={row.techTags} selectedTechTags={selectedTechTags} />,
     reviewCount: (row) => row.reviewCount,
     avgRating: (row) => <RatingCell value={row.avgRating} />,
     minRating: (row) => <RatingCell value={row.minRating} />,

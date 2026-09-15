@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
 import { CopyButton } from '@/components/copy-button';
 import { Badge } from '@/components/ui/badge';
+import { shortenTechTag } from '@/lib/tech-tags';
 
 export type SubmissionFields = {
   submitter: string;
@@ -27,36 +28,6 @@ export type SubmissionFields = {
   techTags: string[];
   singleTechTag: string | null;
 };
-
-// Mirrors apps/api/src/events/tech-tags.seed-data.ts's label->code table (no shared
-// package between frontend/backend here, same as the rest of this codebase's boundary
-// types) - display-only, so an unmapped label just falls back to its full label below.
-const TECH_TAG_CODE: Record<string, string> = {
-  'Brackets (includes Bracket Taps)': 'BR',
-  Crossovers: 'XO',
-  Footswitches: 'FS',
-  Jacks: 'JA',
-  Sideswitches: 'SS',
-  'Doublesteps w/ Mines': 'Mine-DS',
-  'Holds/Rolls (Wadatsumis; Footswitching holds; Holdstream)': 'Holds-Rolls',
-  'Center-tech': 'CT',
-  'Mine dodge': 'MD',
-  Kickswitches: 'KS',
-  'Bursts (includes Drills)': 'BU',
-  'Rhythms (Swing)': 'RH-SW',
-  'Rhythms (Skittles)': 'RH-SK',
-  Stepjumps: 'SJ',
-  Flams: 'FL',
-  'Doublesteps w/ Holds': 'Hold-DS',
-  '(Doubles) Stretch': 'ST',
-  '(Doubles) Movement': 'MV',
-  '(Doubles) Center/Transitions': 'DUB-CT',
-  '(Doubles) Half-Doubles': 'DUB-HD',
-};
-
-export function shortenTechTag(label: string): string {
-  return TECH_TAG_CODE[label] ?? label;
-}
 
 const CONSENT_LABEL: Record<string, string> = {
   CONSENTS: 'Yes',

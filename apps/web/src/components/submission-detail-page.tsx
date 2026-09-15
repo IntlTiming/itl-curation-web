@@ -14,7 +14,7 @@ import {
   RatingCell,
   StdevCell,
 } from '@/components/reviews-table';
-import { shortenTechTag, SubmissionDetail } from '@/components/submission-detail';
+import { SubmissionDetail } from '@/components/submission-detail';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ import {
 } from '@/hooks/use-submission-detail';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
+import { shortenTechTag } from '@/lib/tech-tags';
 
 // The only submission-form "focus" value where singleTechTag is meaningful - see
 // submissions-import.mapper.spec.ts's sample entry, which pairs this exact focus string
@@ -113,48 +114,63 @@ function DetailCollapsible({
   );
 }
 
-function ReviewCard({ review }: { review: SubmissionDetailReview }) {
+function ReviewCard({ review, eventSlug }: { review: SubmissionDetailReview; eventSlug: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Avatar className="size-6">
-            <AvatarImage
-              src={discordAvatarUrl(review.reviewer)}
-              alt={review.reviewer.displayName}
-            />
-            <AvatarFallback className="text-[10px]">
-              {review.reviewer.displayName.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-sm font-medium">{review.reviewer.displayName}</span>
-          {review.isFromDifferentSubmission && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="outline" className="gap-1">
-                  <RefreshCw className="size-3" /> Other submission
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                This review was recorded against a different submission that shares this chart's
-                hash.
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {review.isStale && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="outline" className="text-amber-700 dark:text-amber-400">
-                  Stale
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>The chart has changed since this review was written.</TooltipContent>
-            </Tooltip>
-          )}
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Avatar className="size-6">
+              <AvatarImage
+                src={discordAvatarUrl(review.reviewer)}
+                alt={review.reviewer.displayName}
+              />
+              <AvatarFallback className="text-[10px]">
+                {review.reviewer.displayName.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">{review.reviewer.displayName}</span>
+            {review.isFromDifferentSubmission && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="gap-1">
+                    <RefreshCw className="size-3" /> Other submission
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  This review was recorded against a different submission that shares this chart's
+                  hash.
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {review.isStale && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="destructive">Outdated hash</Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  This review's recorded chart hash no longer matches the chart's current hash - the
+                  chart has changed since this review was written.
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          <span className="text-muted-foreground text-xs">
+            {format(new Date(review.updatedAt), 'PP p')}
+          </span>
         </div>
-        <span className="text-muted-foreground text-xs">
-          {format(new Date(review.updatedAt), 'PP p')}
-        </span>
+        {review.isFromDifferentSubmission && (
+          <span className="text-muted-foreground pl-8 text-xs">
+            (from{' '}
+            <Link
+              to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(review.submissionId)}`}
+              className="text-primary hover:underline"
+            >
+              {review.submissionId}
+            </Link>
+            )
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-4 text-xs">
@@ -323,7 +339,7 @@ export function SubmissionDetailPage() {
               <p className="text-muted-foreground text-sm">No reviews yet for this chart.</p>
             )}
             {reviews.map((review) => (
-              <ReviewCard key={review.id} review={review} />
+              <ReviewCard key={review.id} review={review} eventSlug={slug ?? ''} />
             ))}
           </div>
         </div>

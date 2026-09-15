@@ -8,6 +8,10 @@ export type ReviewsFilters = {
   maxMeter: number | null;
   unreviewedOnly: boolean;
   publiclyReviewableOnly: boolean;
+  // TechTag.code values (e.g. "BR", "XO") - a submission needs at least one to show up at all;
+  // exact-set matches are ranked first server-side (see reviews.service.ts's
+  // buildTechTagRankFragment), same as search relevance.
+  techTags: string[];
 };
 
 const DEFAULT_FILTERS: ReviewsFilters = {
@@ -17,6 +21,7 @@ const DEFAULT_FILTERS: ReviewsFilters = {
   maxMeter: null,
   unreviewedOnly: false,
   publiclyReviewableOnly: false,
+  techTags: [],
 };
 
 // Exported so event-detail.tsx can strip these atomically, in the SAME setSearchParams call
@@ -30,6 +35,7 @@ export const FILTER_PARAM_KEYS = [
   'maxMeter',
   'unreviewedOnly',
   'publiclyReviewableOnly',
+  'techTags',
 ] as const;
 
 function storageKey(slug: string): string {
@@ -49,6 +55,12 @@ function parseFromParams(params: URLSearchParams): ReviewsFilters {
     maxMeter: params.has('maxMeter') ? Number(params.get('maxMeter')) : DEFAULT_FILTERS.maxMeter,
     unreviewedOnly: params.get('unreviewedOnly') === 'true',
     publiclyReviewableOnly: params.get('publiclyReviewableOnly') === 'true',
+    techTags: params.has('techTags')
+      ? (params.get('techTags') ?? '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : DEFAULT_FILTERS.techTags,
   };
 }
 
@@ -76,6 +88,7 @@ function writeToParams(filters: ReviewsFilters, params: URLSearchParams): URLSea
   setOrDelete('maxMeter', String(filters.maxMeter), filters.maxMeter === DEFAULT_FILTERS.maxMeter);
   setOrDelete('unreviewedOnly', 'true', !filters.unreviewedOnly);
   setOrDelete('publiclyReviewableOnly', 'true', !filters.publiclyReviewableOnly);
+  setOrDelete('techTags', filters.techTags.join(','), filters.techTags.length === 0);
   return next;
 }
 

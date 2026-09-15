@@ -31,7 +31,8 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
     filters.minMeter === null &&
     filters.maxMeter === null &&
     !filters.unreviewedOnly &&
-    !filters.publiclyReviewableOnly;
+    !filters.publiclyReviewableOnly &&
+    filters.techTags.length === 0;
   return isUnfiltered
     ? `Showing ${totalCount} ${playstyleLabel} submissions`
     : `Showing ${visibleCount} of ${totalCount} ${playstyleLabel} submissions`;
@@ -84,6 +85,8 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           onFiltersChange={setFilters}
           onReset={resetFilters}
           meterBounds={result.status === 'loaded' ? result.meterBounds : null}
+          sort={sort}
+          onSortChange={setSort}
         />
         <ColumnsDialog
           order={sanitizedColumnOrder}
@@ -118,6 +121,7 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           onEditReview={setActiveReviewFileId}
           sort={sort}
           onSortChange={setSort}
+          selectedTechTags={filters.techTags}
         />
       )}
 

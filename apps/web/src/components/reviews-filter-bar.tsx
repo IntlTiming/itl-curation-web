@@ -3,6 +3,8 @@ import { ChevronRight, RotateCcw } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReviewsFilters } from '@/hooks/use-reviews-filters';
 import type { ReviewsMeterBounds } from '@/hooks/use-reviews';
+import type { SortState } from '@/components/reviews-table';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -15,8 +17,12 @@ import {
   NumberFieldIncrement,
   NumberFieldInput,
 } from '@/components/ui/number-field';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
+import { TECH_TAGS, type TechCategory } from '@/lib/tech-tags';
+
+const TECH_TAG_CATEGORIES: TechCategory[] = ['BXF', 'TECH', 'NOTECH'];
 
 const SEARCH_DEBOUNCE_MS = 350;
 const METER_COMMIT_DEBOUNCE_MS = 350;
@@ -26,11 +32,18 @@ export function ReviewsFilterBar({
   onFiltersChange,
   onReset,
   meterBounds,
+  sort,
+  onSortChange,
 }: {
   filters: ReviewsFilters;
   onFiltersChange: (update: Partial<ReviewsFilters>) => void;
   onReset: () => void;
   meterBounds: ReviewsMeterBounds;
+  // Only consulted by the Tech Tags popover's "Sort" button below - lets it tell whether a
+  // column sort is currently overriding the server's best-match tech tag ordering, and clear
+  // it back to null (not the table's own toggleSort cycle) when clicked.
+  sort: SortState;
+  onSortChange: (sort: SortState) => void;
 }) {
   const [searchInput, setSearchInput] = useState(filters.search);
   // Starts open if a filter living inside it is already active on mount (e.g. loaded from the
@@ -199,6 +212,84 @@ export function ReviewsFilterBar({
               </NumberFieldGroup>
             </NumberField>
           </div>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Tech Tags</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-8 justify-start">
+                Tech Tags
+                {filters.techTags.length > 0 && (
+                  <Badge variant="secondary">{filters.techTags.length}</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <div className="flex items-center justify-between gap-2 border-b px-2.5 py-1.5">
+                <span className="text-muted-foreground text-xs font-medium uppercase">
+                  Tech Tags
+                </span>
+                <div className="flex items-center gap-1">
+                  {/* Clears any active column sort (rather than cycling it, like clicking a
+                    column header does) so the server's default order - which ranks exact/close
+                    tech-tag matches first once tags are selected - can show through. Disabled
+                    when there's nothing to clear (sort is already null) or nothing to rank by
+                    (no tags selected). */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1.5 text-xs"
+                    disabled={sort === null || filters.techTags.length === 0}
+                    onClick={() => onSortChange(null)}
+                  >
+                    Sort
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1.5 text-xs"
+                    disabled={filters.techTags.length === 0}
+                    onClick={() => onFiltersChange({ techTags: [] })}
+                  >
+                    Unselect all
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-80 overflow-y-auto p-2.5">
+                {TECH_TAG_CATEGORIES.map((category) => (
+                  <div key={category} className="mb-3 last:mb-0">
+                    <div className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                      {category}
+                    </div>
+                    {TECH_TAGS.filter((tag) => tag.category === category).map((tag) => {
+                      const id = `tech-tag-${tag.code}`;
+                      const checked = filters.techTags.includes(tag.code);
+                      return (
+                        <div key={tag.code} className="flex items-center gap-2 py-1">
+                          <Checkbox
+                            id={id}
+                            checked={checked}
+                            onCheckedChange={(next) =>
+                              onFiltersChange({
+                                techTags:
+                                  next === true
+                                    ? [...filters.techTags, tag.code]
+                                    : filters.techTags.filter((code) => code !== tag.code),
+                              })
+                            }
+                          />
+                          <Label htmlFor={id} className="text-sm font-normal">
+                            {tag.label}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Unreviewed and Reset filters have no label of their own, but still get an invisible
