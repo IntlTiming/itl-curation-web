@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router';
 import {
   Breadcrumb,
@@ -7,10 +8,10 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { useBreadcrumbLabel } from '@/hooks/use-breadcrumb';
+import { useBreadcrumbSegments } from '@/hooks/use-breadcrumb';
 
 export function AppBreadcrumb() {
-  const label = useBreadcrumbLabel();
+  const segments = useBreadcrumbSegments();
 
   return (
     <Breadcrumb>
@@ -23,14 +24,20 @@ export function AppBreadcrumb() {
             </Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
-        {label && (
-          <>
+        {segments.map((segment, index) => (
+          <Fragment key={index}>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>{label}</BreadcrumbPage>
+              {segment.to ? (
+                <BreadcrumbLink asChild>
+                  <Link to={segment.to}>{segment.label}</Link>
+                </BreadcrumbLink>
+              ) : (
+                <BreadcrumbPage>{segment.label}</BreadcrumbPage>
+              )}
             </BreadcrumbItem>
-          </>
-        )}
+          </Fragment>
+        ))}
       </BreadcrumbList>
     </Breadcrumb>
   );

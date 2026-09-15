@@ -54,7 +54,7 @@ const TECH_TAG_CODE: Record<string, string> = {
   '(Doubles) Half-Doubles': 'DUB-HD',
 };
 
-function shortenTechTag(label: string): string {
+export function shortenTechTag(label: string): string {
   return TECH_TAG_CODE[label] ?? label;
 }
 
@@ -229,10 +229,14 @@ export function SubmissionDetail({
   submission,
   previousSubmission,
   fileId,
+  hideHeading,
 }: {
   submission: SubmissionFields;
   previousSubmission?: SubmissionFields | null;
   fileId?: string;
+  // Set when a wrapping element (e.g. a collapsible section's own trigger label) already
+  // identifies this block as "Submission" - skips the redundant internal heading.
+  hideHeading?: boolean;
 }) {
   const badgeLabel = chartBadgeLabel(submission);
   const priorBadgeLabel = previousSubmission ? chartBadgeLabel(previousSubmission) : null;
@@ -248,7 +252,7 @@ export function SubmissionDetail({
             {priorBadgeLabel}
           </Badge>
         )}
-        <DifficultyBadge label={badgeLabel} difficulty={submission.difficulty} small />
+        <DifficultyBadge label={badgeLabel} difficulty={submission.difficulty} size="small" />
       </div>
     ),
   };
@@ -319,7 +323,7 @@ export function SubmissionDetail({
 
   return (
     <div className="py-2">
-      <p className="mb-1 text-left text-xs font-semibold">Submission</p>
+      {!hideHeading && <p className="mb-1 text-left text-xs font-semibold">Submission</p>}
       <div className="grid grid-cols-4 gap-x-6 gap-y-1 text-xs">
         {columns.map((column, i) => (
           <div key={i} className="flex flex-col gap-1">

@@ -6,6 +6,7 @@ import { EventDetail } from '@/components/event-detail';
 import { EventList } from '@/components/event-list';
 import { Loading } from '@/components/loading';
 import { ModeToggle } from '@/components/mode-toggle';
+import { SubmissionDetailPage } from '@/components/submission-detail-page';
 import { UserMenu } from '@/components/user-menu';
 import { useAuth } from '@/hooks/use-auth';
 import { BreadcrumbProvider } from '@/hooks/use-breadcrumb';
@@ -45,6 +46,7 @@ function App() {
             <Routes>
               <Route path="/" element={<EventList user={auth.user} />} />
               <Route path="/events/:slug" element={<EventDetail />} />
+              <Route path="/events/:slug/submissions/:fileId" element={<SubmissionDetailPage />} />
             </Routes>
           )}
         </main>

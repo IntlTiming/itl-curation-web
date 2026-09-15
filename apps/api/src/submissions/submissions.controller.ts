@@ -24,4 +24,17 @@ export class SubmissionsController {
     }
     return this.submissions.listForEvent(event.id);
   }
+
+  @Get(':fileId')
+  async getOne(
+    @Param('slug') slug: string,
+    @Param('fileId') fileId: string,
+    @CurrentUser() user: User,
+  ) {
+    const event = await this.events.findAccessibleBySlug(user, slug);
+    if (!event) {
+      throw new NotFoundException(`No event with slug "${slug}"`);
+    }
+    return this.submissions.getForEvent(event.id, fileId);
+  }
 }

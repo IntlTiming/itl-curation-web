@@ -1,20 +1,22 @@
-import { Inbox, Upload } from 'lucide-react';
+import { ClipboardCheck, Inbox, Upload, Users } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
+import { ReviewsPanel } from '@/components/reviews-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
+import { SubmittersPanel } from '@/components/submitters-panel';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEvent } from '@/hooks/use-event';
 import { usePageBreadcrumb } from '@/hooks/use-breadcrumb';
 
-const DEFAULT_TAB = 'submissions';
+const DEFAULT_TAB = 'reviews';
 
 export function EventDetail() {
   const { slug } = useParams<{ slug: string }>();
   const result = useEvent(slug ?? '');
   const [searchParams, setSearchParams] = useSearchParams();
-  usePageBreadcrumb(result.status === 'loaded' ? result.event.name : null);
+  usePageBreadcrumb(result.status === 'loaded' ? [{ label: result.event.name }] : []);
 
   if (result.status === 'loading') {
     return <Loading message="Loading event…" />;
@@ -41,7 +43,7 @@ export function EventDetail() {
 
   return (
     <Tabs
-      className="w-full self-start"
+      className="w-full gap-6 self-start"
       value={tab}
       onValueChange={(value) => {
         setSearchParams(
@@ -58,9 +60,17 @@ export function EventDetail() {
       }}
     >
       <TabsList variant="line">
+        <TabsTrigger value="reviews">
+          <ClipboardCheck />
+          Reviews
+        </TabsTrigger>
         <TabsTrigger value="submissions">
           <Inbox />
           Submissions
+        </TabsTrigger>
+        <TabsTrigger value="submitters">
+          <Users />
+          Submitters
         </TabsTrigger>
         {event.isEventAdmin && (
           <TabsTrigger value="import">
@@ -69,8 +79,14 @@ export function EventDetail() {
           </TabsTrigger>
         )}
       </TabsList>
+      <TabsContent value="reviews">
+        <ReviewsPanel eventSlug={event.slug} />
+      </TabsContent>
       <TabsContent value="submissions">
         <SubmissionsPanel eventSlug={event.slug} />
+      </TabsContent>
+      <TabsContent value="submitters">
+        <SubmittersPanel eventSlug={event.slug} />
       </TabsContent>
       {event.isEventAdmin && (
         <TabsContent value="import">

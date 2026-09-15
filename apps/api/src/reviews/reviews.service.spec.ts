@@ -1,0 +1,260 @@
+import { Playstyle } from '@prisma/client';
+import { describe, expect, it } from 'vitest';
+import type { ReviewsQueryDto } from './dto/reviews-query.dto.js';
+import {
+  buildBaseWhereFragments,
+  mapRawReviewRow,
+  reviewFieldsChanged,
+} from './reviews.service.js';
+
+const BASE_QUERY: ReviewsQueryDto = {
+  playstyle: Playstyle.SINGLE,
+  unreviewedOnly: false,
+  publiclyReviewableOnly: false,
+};
+
+function fragmentTexts(fragments: ReturnType<typeof buildBaseWhereFragments>): string[] {
+  return fragments.map((fragment) => fragment.sql);
+}
+
+describe('buildBaseWhereFragments', () => {
+  it('always includes eventId, playstyle, and isIgnored=false fragments', () => {
+    const fragments = buildBaseWhereFragments('event-1', BASE_QUERY);
+    const texts = fragmentTexts(fragments);
+
+    expect(texts.some((t) => t.includes('"eventId"'))).toBe(true);
+    expect(texts.some((t) => t.includes('c.playstyle'))).toBe(true);
+    expect(texts.some((t) => t.includes('"isIgnored"'))).toBe(true);
+    expect(texts.some((t) => t.includes('NOT EXISTS'))).toBe(false);
+    expect(texts.some((t) => t.includes('similarity'))).toBe(false);
+    expect(fragments).toHaveLength(3);
+  });
+
+  it('adds a NOT EXISTS fragment keyed on chart hash when unreviewedOnly is true', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, unreviewedOnly: true });
+    const texts = fragmentTexts(fragments);
+    const notExistsFragment = texts.find((t) => t.includes('NOT EXISTS'));
+
+    expect(notExistsFragment).toBeDefined();
+    expect(notExistsFragment).toContain('"chartHash"');
+    expect(notExistsFragment).toContain('c.hash');
+    expect(notExistsFragment).not.toContain('fileId');
+  });
+
+  it('adds a consentToPublicReview=CONSENTS fragment when publiclyReviewableOnly is true', () => {
+    const fragments = buildBaseWhereFragments('event-1', {
+      ...BASE_QUERY,
+      publiclyReviewableOnly: true,
+    });
+    const texts = fragmentTexts(fragments);
+    const consentFragment = texts.find((t) => t.includes('consentToPublicReview'));
+
+    expect(consentFragment).toBeDefined();
+    expect(consentFragment).toContain('CONSENTS');
+    expect(fragments).toHaveLength(4);
+  });
+
+  it('adds an OR-joined similarity fragment across all 8 searched columns when a search term is present', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '  mirror  ' });
+    const texts = fragmentTexts(fragments);
+    const similarityFragment = texts.find((t) => t.includes('similarity'));
+
+    expect(similarityFragment).toBeDefined();
+    expect(similarityFragment?.match(/similarity\(/g)).toHaveLength(8);
+    expect(similarityFragment).toContain(' OR ');
+
+    const values = fragments.flatMap((f) => f.values);
+    // The search term is trimmed before being used as a query parameter.
+    expect(values).toContain('mirror');
+    expect(values).not.toContain('  mirror  ');
+  });
+
+  it('does not add a search fragment for a blank/whitespace-only search term', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '   ' });
+    const texts = fragmentTexts(fragments);
+
+    expect(texts.some((t) => t.includes('similarity'))).toBe(false);
+    expect(fragments).toHaveLength(3);
+  });
+
+  // similarity() can't score a 1-2 character term meaningfully (see SHORT_SEARCH_TERM_LENGTH's
+  // comment) - below that length the query falls back to a plain substring ILIKE instead.
+  it('uses an OR-joined ILIKE fragment across all 8 searched columns for a 1-character term', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: 'a' });
+    const texts = fragmentTexts(fragments);
+    const likeFragment = texts.find((t) => t.includes('ILIKE'));
+
+    expect(likeFragment).toBeDefined();
+    expect(texts.some((t) => t.includes('similarity'))).toBe(false);
+    expect(likeFragment?.match(/ILIKE/g)).toHaveLength(8);
+    expect(likeFragment).toContain(' OR ');
+
+    const values = fragments.flatMap((f) => f.values);
+    expect(values).toContain('%a%');
+  });
+
+  it('still uses similarity for a 3-character term (the ILIKE fallback only applies below that)', () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: 'abc' });
+    const texts = fragmentTexts(fragments);
+
+    expect(texts.some((t) => t.includes('similarity'))).toBe(true);
+    expect(texts.some((t) => t.includes('ILIKE'))).toBe(false);
+  });
+
+  it("escapes the short term's own LIKE wildcard characters so they match literally", () => {
+    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '%_' });
+    const values = fragments.flatMap((f) => f.values);
+
+    expect(values).toContain('%\\%\\_%');
+  });
+});
+
+describe('mapRawReviewRow', () => {
+  it('nests chart fields under a chart object and converts the bigint counts to numbers', () => {
+    const row = mapRawReviewRow({
+      fileId: 'file-1',
+      submitter: 'lemone',
+      stepartist: 'Lilly',
+      pack: 'Single',
+      cmodPreference: 'NO_CMOD',
+      consentToPublicReview: 'CONSENTS',
+      isIgnored: false,
+      hash: 'abc123',
+      title: 'MIRROR',
+      titleRomaji: '',
+      subtitle: '',
+      subtitleRomaji: '',
+      artist: 'Ado',
+      artistRomaji: '',
+      playstyle: 'DOUBLE',
+      difficulty: 'CHALLENGE',
+      meter: 13,
+      hasSignificantTimingChanges: true,
+      reviewCount: 3n,
+      avgRating: 200,
+      minRating: 150,
+      maxRating: 200,
+      stdevRating: 25.0,
+      hasOwnReview: true,
+      commentCount: 2n,
+      lastActivity: new Date('2026-02-01T00:00:00Z'),
+    });
+
+    expect(row).toEqual({
+      fileId: 'file-1',
+      submitter: 'lemone',
+      stepartist: 'Lilly',
+      pack: 'Single',
+      cmodPreference: 'NO_CMOD',
+      consentToPublicReview: 'CONSENTS',
+      isIgnored: false,
+      chart: {
+        hash: 'abc123',
+        title: 'MIRROR',
+        titleRomaji: '',
+        subtitle: '',
+        subtitleRomaji: '',
+        artist: 'Ado',
+        artistRomaji: '',
+        playstyle: 'DOUBLE',
+        difficulty: 'CHALLENGE',
+        meter: 13,
+        hasSignificantTimingChanges: true,
+      },
+      reviewCount: 3,
+      avgRating: 2,
+      minRating: 1.5,
+      maxRating: 2,
+      stdevRating: 0.25,
+      hasOwnReview: true,
+      commentCount: 2,
+      lastActivity: new Date('2026-02-01T00:00:00Z'),
+    });
+    expect(typeof row.reviewCount).toBe('number');
+    expect(typeof row.avgRating).toBe('number');
+    expect(typeof row.commentCount).toBe('number');
+  });
+
+  it('leaves avg/min/max/stdev rating null when no active review carries a rating', () => {
+    const row = mapRawReviewRow({
+      fileId: 'file-1',
+      submitter: 'lemone',
+      stepartist: 'Lilly',
+      pack: 'Single',
+      cmodPreference: 'NO_CMOD',
+      consentToPublicReview: null,
+      isIgnored: false,
+      hash: 'abc123',
+      title: 'MIRROR',
+      titleRomaji: '',
+      subtitle: '',
+      subtitleRomaji: '',
+      artist: 'Ado',
+      artistRomaji: '',
+      playstyle: 'DOUBLE',
+      difficulty: 'CHALLENGE',
+      meter: 13,
+      hasSignificantTimingChanges: true,
+      reviewCount: 1n,
+      avgRating: null,
+      minRating: null,
+      maxRating: null,
+      stdevRating: null,
+      hasOwnReview: false,
+      commentCount: 0n,
+      lastActivity: null,
+    });
+
+    expect(row.consentToPublicReview).toBeNull();
+    expect(row.hasOwnReview).toBe(false);
+    expect(row.avgRating).toBeNull();
+    expect(row.minRating).toBeNull();
+    expect(row.maxRating).toBeNull();
+    expect(row.stdevRating).toBeNull();
+    expect(row.commentCount).toBe(0);
+    expect(row.lastActivity).toBeNull();
+  });
+});
+
+describe('reviewFieldsChanged', () => {
+  const BASE = { rating: 150, passing: 3, scoring: 7, notes: 'looks good', basicChecks: [] };
+
+  it('returns false when every field is identical, regardless of key order', () => {
+    expect(reviewFieldsChanged(BASE, { ...BASE })).toBe(false);
+  });
+
+  it('returns true when a scalar field differs', () => {
+    expect(reviewFieldsChanged(BASE, { ...BASE, rating: 200 })).toBe(true);
+    expect(reviewFieldsChanged(BASE, { ...BASE, notes: 'changed' })).toBe(true);
+  });
+
+  it('is insensitive to basicChecks array order', () => {
+    const a = {
+      ...BASE,
+      basicChecks: [
+        { basicCheckReasonId: 'b', note: null },
+        { basicCheckReasonId: 'a', note: null },
+      ],
+    };
+    const b = {
+      ...BASE,
+      basicChecks: [
+        { basicCheckReasonId: 'a', note: null },
+        { basicCheckReasonId: 'b', note: null },
+      ],
+    };
+    expect(reviewFieldsChanged(a, b)).toBe(false);
+  });
+
+  it('returns true when a basicCheck note differs', () => {
+    const a = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: 'measure 12' }] };
+    const b = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: 'measure 13' }] };
+    expect(reviewFieldsChanged(a, b)).toBe(true);
+  });
+
+  it('returns true when the basicChecks set has a different size', () => {
+    const a = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: null }] };
+    const b = { ...BASE, basicChecks: [] };
+    expect(reviewFieldsChanged(a, b)).toBe(true);
+  });
+});

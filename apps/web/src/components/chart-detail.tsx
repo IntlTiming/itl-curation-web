@@ -75,21 +75,25 @@ const DIFFICULTY_BADGE_CLASS: Record<string, string> = {
   CHALLENGE: 'bg-[hsl(212,100%,70%)] text-black dark:bg-[hsl(212,100%,30%)] dark:text-white',
 };
 
-// small renders a more compact badge so it can sit inline alongside a text field label
-// (see the "Difficulty" field row below) or inline in a table cell, rather than as the
-// prominent header badge.
+// size="small" renders a more compact badge so it can sit inline alongside a text field
+// label (see the "Difficulty" field row below) or inline in a table cell that also carries
+// other text (Submissions/Import). The default (undefined) size is bigger, for contexts
+// like the Reviews table where the badge is the sole content of its own cell.
 export function DifficultyBadge({
   label,
   difficulty,
-  small,
+  size,
 }: {
   label: string;
   difficulty: string;
-  small?: boolean;
+  size?: 'small';
 }) {
   return (
     <Badge
-      className={cn(DIFFICULTY_BADGE_CLASS[difficulty] ?? '', small && 'h-4 px-1.5 text-[10px]')}
+      className={cn(
+        DIFFICULTY_BADGE_CLASS[difficulty] ?? '',
+        size === 'small' && 'h-4 px-1.5 text-[10px]',
+      )}
     >
       {label}
     </Badge>
@@ -244,16 +248,24 @@ const FIXED_COLUMN_KEYS = [
 export function ChartDetail({
   chart,
   previousChart,
+  hideHeading,
 }: {
   chart: ChartFields;
   previousChart?: ChartFields | null;
+  // Set when a wrapping element (e.g. a collapsible section's own trigger label) already
+  // identifies this block as "Chart" - skips the redundant internal heading.
+  hideHeading?: boolean;
 }) {
   const difficultyRow = {
     key: 'difficulty',
     node: (
       <div key="difficulty">
         <span className="text-muted-foreground">Difficulty:</span>{' '}
-        <DifficultyBadge label={chartBadgeLabel(chart)} difficulty={chart.difficulty} small />
+        <DifficultyBadge
+          label={chartBadgeLabel(chart)}
+          difficulty={chart.difficulty}
+          size="small"
+        />
       </div>
     ),
   };
@@ -311,7 +323,7 @@ export function ChartDetail({
 
   return (
     <div className="py-2">
-      <p className="mb-1 text-left text-xs font-semibold">Chart</p>
+      {!hideHeading && <p className="mb-1 text-left text-xs font-semibold">Chart</p>}
       {/* Fixed 4 columns, not responsive - this expands inline in a curator's review table,
           a desktop-only workflow, so it isn't worth collapsing for narrow viewports. */}
       <div className="grid grid-cols-4 gap-x-6 gap-y-1 text-xs">

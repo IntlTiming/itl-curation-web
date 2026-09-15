@@ -10,12 +10,14 @@
 //   review.chartHash != submission.chart?.hash
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgTrgm(map: "pg_trgm")]
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +37,8 @@ model User {
   eventRoles        EventRole[]
   reviews           Review[]
   reviewRevisions   ReviewRevision[]
+  comments          Comment[]
+  commentReactions  CommentReaction[]
   disqualifications Disqualification[]
 
   @@map("users")
@@ -48,8 +52,8 @@ model Event {
   archivedAt DateTime? // soft delete - null = active. Dependent tables (Submission, Review, ...)
   // have no soft-delete column of their own; their archived status is inferred by
   // walking up to this field, since nothing lets a row survive independently of its event.
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   roles                   EventRole[]
   submissions             Submission[]
@@ -136,6 +140,12 @@ model Submission {
   isInternal            Boolean                @default(false)
   submittedAt           DateTime // pipeline's "timestamp_utc" - when the submission form was submitted, not this row's own createdAt/updatedAt
   isIgnored             Boolean                @default(false) // mirrors the pipeline's "is_ignored" (e.g. superseded by a later resubmission of the same chart, among other reasons) - mapped straight from submissions.json like any other field while a fileId is present. If a fileId disappears from the file entirely, Import treats that the same as "is_ignored: true, chart: null" rather than deleting the row - the file is never allowed to delete rows outright, only to ignore them.
+  lastReviewAt          DateTime? // MAX(review.updatedAt) across this submission's own reviews -
+  // NOT chart-hash matched, unlike the Reviews tab's reviewCount/avgRating. Recomputed after
+  // every review upsert. Not exposed in any API response on its own - only combined into the
+  // Reviews tab's "last activity" column alongside lastCommentAt.
+  lastCommentAt         DateTime? // Same idea, MAX(comment.updatedAt) across this submission's
+  // comments. Recomputed after every comment create/update/delete.
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -145,9 +155,14 @@ model Submission {
   singleTechTagId   String?
   singleTechTag     TechTag?            @relation("SubmissionSingleTechFocus", fields: [singleTechTagId], references: [id])
   reviews           Review[]
+  comments          Comment[]
   disqualifications Disqualification[]
 
   @@index([eventId])
+  // Trigram indexes power the Reviews table's fuzzy text search - see Chart's matching
+  // comment and ReviewsService.
+  @@index([stepartist(ops: raw("gin_trgm_ops"))], type: Gin, map: "submissions_stepartist_trgm_idx")
+  @@index([pack(ops: raw("gin_trgm_ops"))], type: Gin, map: "submissions_pack_trgm_idx")
   @@map("submissions")
 }
 
@@ -223,6 +238,14 @@ model Chart {
   submission Submission @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
 
   @@index([hash])
+  // Trigram indexes power the Reviews table's fuzzy text search (similarity() over these
+  // columns) - see ReviewsService.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_title_trgm_idx")
+  @@index([titleRomaji(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_title_romaji_trgm_idx")
+  @@index([subtitle(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_subtitle_trgm_idx")
+  @@index([subtitleRomaji(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_subtitle_romaji_trgm_idx")
+  @@index([artist(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_artist_trgm_idx")
+  @@index([artistRomaji(ops: raw("gin_trgm_ops"))], type: Gin, map: "charts_artist_romaji_trgm_idx")
   @@map("charts")
 }
 
@@ -261,14 +284,21 @@ model SubmissionTechTag {
 // Review
 // ---------------------------------------------------------------------------
 
+enum BasicCheckLevel {
+  WARNING
+  DISQUALIFIED
+}
+
 // Reviewers invent new failure classes mid-season ("Beat 0", "Profanity",
 // "Used before"), so these are rows, not an enum. eventId null = global.
 model BasicCheckReason {
-  id       String  @id @default(cuid())
-  code     String
-  label    String
-  eventId  String?
-  isActive Boolean @default(true)
+  id          String          @id @default(cuid())
+  code        String
+  label       String
+  description String // shown in a tooltip/legend alongside the checkbox
+  level       BasicCheckLevel
+  eventId     String?
+  isActive    Boolean         @default(true)
 
   event                     Event?                     @relation(fields: [eventId], references: [id])
   reviewBasicChecks         ReviewBasicCheck[]
@@ -279,16 +309,16 @@ model BasicCheckReason {
 }
 
 model Review {
-  id             String   @id @default(cuid())
-  submissionId   String
-  reviewerId     String
-  chartHash      String // snapshot: which chart hash this opinion is about
-  rating         Int? // stored as hundredths - assume at most 2 decimal places (e.g. 150 = 1.50); business logic scales on read/write
-  passing        Int?
-  scoring        Int?
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           String   @id @default(cuid())
+  submissionId String
+  reviewerId   String
+  chartHash    String // snapshot: which chart hash this opinion is about
+  rating       Int? // stored as hundredths - assume at most 2 decimal places (e.g. 150 = 1.50); business logic scales on read/write
+  passing      Int?
+  scoring      Int?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Deliberately no constraint tying passing/scoring to basicCheckReasons:
   // reviewers sometimes score a chart that failed a basic check and sometimes
@@ -296,6 +326,22 @@ model Review {
 
   // chartHash is a plain snapshot, not an FK - Chart has no version history to point
   // at (see file header). Staleness: review.chartHash != submission.chart?.hash.
+
+  // The rest of these are snapshots too, taken alongside chartHash on every save (see
+  // ReviewsService.upsertReviewTransaction). Chart is mutated in place, so if the chart
+  // is later resynced to something unrecognizable - or the submission itself disappears -
+  // chartHash alone is just an opaque string with nothing left to look it up against. An
+  // orphaned review (chartHash matching no current Chart row) still carries enough of the
+  // chart's own identity here to be reconciled to a different submission by hand.
+  chartTitle          String
+  chartTitleRomaji    String
+  chartSubtitle       String
+  chartSubtitleRomaji String
+  chartArtist         String
+  chartArtistRomaji   String
+  chartPlaystyle      Playstyle
+  chartDifficulty     Difficulty
+  chartMeter          Int
 
   submission        Submission         @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
   reviewer          User               @relation(fields: [reviewerId], references: [id])
@@ -314,6 +360,7 @@ model Review {
 model ReviewBasicCheck {
   reviewId           String
   basicCheckReasonId String
+  note               String? // optional plain text (not markdown), e.g. where an ambiguity occurred
 
   review           Review           @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   basicCheckReason BasicCheckReason @relation(fields: [basicCheckReasonId], references: [id])
@@ -335,6 +382,19 @@ model ReviewRevision {
   supersededAt   DateTime @default(now())
   supersededById String
 
+  // Mirrors Review's own chart identity snapshot (see the comment there), carried over
+  // as-is from the superseded Review row so a revision stays just as reconcilable if it
+  // ever ends up orphaned on its own.
+  chartTitle          String
+  chartTitleRomaji    String
+  chartSubtitle       String
+  chartSubtitleRomaji String
+  chartArtist         String
+  chartArtistRomaji   String
+  chartPlaystyle      Playstyle
+  chartDifficulty     Difficulty
+  chartMeter          Int
+
   review            Review                     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   supersededBy      User                       @relation(fields: [supersededById], references: [id])
   basicCheckReasons ReviewRevisionBasicCheck[]
@@ -350,12 +410,59 @@ model ReviewRevision {
 model ReviewRevisionBasicCheck {
   reviewRevisionId   String
   basicCheckReasonId String
+  note               String? // mirrors ReviewBasicCheck.note as of the superseded revision
 
   reviewRevision   ReviewRevision   @relation(fields: [reviewRevisionId], references: [id], onDelete: Cascade)
   basicCheckReason BasicCheckReason @relation(fields: [basicCheckReasonId], references: [id])
 
   @@id([reviewRevisionId, basicCheckReasonId])
   @@map("review_revision_basic_checks")
+}
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+// A flat, unthreaded discussion feed anchored to the submission itself, deliberately NOT
+// cross-matched by chart hash the way Review is (see file header) - a comment about a
+// submission stays about that submission even if another submission later shares its
+// chart's hash. Unlike Review, a user can post any number of comments (no
+// @@unique([submissionId, authorId])), and only the author can edit/delete their own.
+model Comment {
+  id           String   @id @default(cuid())
+  submissionId String
+  authorId     String
+  chartHash    String // informational snapshot only, taken at save time - NOT queried/matched
+  // across submissions (unlike Review.chartHash), just a "has the chart changed since this was
+  // written" staleness indicator. No full chart-identity snapshot the way Review carries one.
+  body         String // markdown text, same convention/editor as Review.notes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submission Submission        @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  author     User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  reactions  CommentReaction[]
+
+  @@index([submissionId])
+  // Deliberately no @@index([chartHash]) - never queried by it, unlike Review.
+  @@map("comments")
+}
+
+// One row per (comment, user, emoji) - a user can react to the same comment with several
+// different emoji, but only once each; re-clicking toggles the reaction off. Cascade on both
+// FKs (unlike Comment.authorId's Restrict): losing a stray reaction on user/comment deletion
+// is inconsequential, unlike losing comment text.
+model CommentReaction {
+  commentId String
+  userId    String
+  emoji     String // a single emoji grapheme, validated server-side (see IsSingleEmoji)
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId, emoji])
+  @@map("comment_reactions")
 }
 
 // ---------------------------------------------------------------------------

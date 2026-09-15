@@ -1,3 +1,6 @@
+-- CreateExtension
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
 -- CreateEnum
 CREATE TYPE "EventRoleType" AS ENUM ('REVIEWER', 'ADMIN');
 
@@ -15,6 +18,9 @@ CREATE TYPE "ConsentToPublicReview" AS ENUM ('CONSENTS', 'DOES_NOT_CONSENT', 'NO
 
 -- CreateEnum
 CREATE TYPE "TechCategory" AS ENUM ('BXF', 'TECH', 'NOTECH');
+
+-- CreateEnum
+CREATE TYPE "BasicCheckLevel" AS ENUM ('WARNING', 'DISQUALIFIED');
 
 -- CreateEnum
 CREATE TYPE "DisqualificationStatus" AS ENUM ('ACTIVE', 'POSSIBLY_RESOLVED', 'CLEARED');
@@ -79,6 +85,10 @@ CREATE TABLE "submissions" (
     "songDir" TEXT,
     "bannerSlug" TEXT NOT NULL,
     "isInternal" BOOLEAN NOT NULL DEFAULT false,
+    "submittedAt" TIMESTAMP(3) NOT NULL,
+    "isIgnored" BOOLEAN NOT NULL DEFAULT false,
+    "lastReviewAt" TIMESTAMP(3),
+    "lastCommentAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "singleTechTagId" TEXT,
@@ -153,6 +163,8 @@ CREATE TABLE "basic_check_reasons" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "label" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "level" "BasicCheckLevel" NOT NULL,
     "eventId" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
 
@@ -171,6 +183,15 @@ CREATE TABLE "reviews" (
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "chartTitle" TEXT NOT NULL,
+    "chartTitleRomaji" TEXT NOT NULL,
+    "chartSubtitle" TEXT NOT NULL,
+    "chartSubtitleRomaji" TEXT NOT NULL,
+    "chartArtist" TEXT NOT NULL,
+    "chartArtistRomaji" TEXT NOT NULL,
+    "chartPlaystyle" "Playstyle" NOT NULL,
+    "chartDifficulty" "Difficulty" NOT NULL,
+    "chartMeter" INTEGER NOT NULL,
 
     CONSTRAINT "reviews_pkey" PRIMARY KEY ("id")
 );
@@ -179,6 +200,7 @@ CREATE TABLE "reviews" (
 CREATE TABLE "review_basic_checks" (
     "reviewId" TEXT NOT NULL,
     "basicCheckReasonId" TEXT NOT NULL,
+    "note" TEXT,
 
     CONSTRAINT "review_basic_checks_pkey" PRIMARY KEY ("reviewId","basicCheckReasonId")
 );
@@ -194,6 +216,15 @@ CREATE TABLE "review_revisions" (
     "notes" TEXT,
     "supersededAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "supersededById" TEXT NOT NULL,
+    "chartTitle" TEXT NOT NULL,
+    "chartTitleRomaji" TEXT NOT NULL,
+    "chartSubtitle" TEXT NOT NULL,
+    "chartSubtitleRomaji" TEXT NOT NULL,
+    "chartArtist" TEXT NOT NULL,
+    "chartArtistRomaji" TEXT NOT NULL,
+    "chartPlaystyle" "Playstyle" NOT NULL,
+    "chartDifficulty" "Difficulty" NOT NULL,
+    "chartMeter" INTEGER NOT NULL,
 
     CONSTRAINT "review_revisions_pkey" PRIMARY KEY ("id")
 );
@@ -202,8 +233,32 @@ CREATE TABLE "review_revisions" (
 CREATE TABLE "review_revision_basic_checks" (
     "reviewRevisionId" TEXT NOT NULL,
     "basicCheckReasonId" TEXT NOT NULL,
+    "note" TEXT,
 
     CONSTRAINT "review_revision_basic_checks_pkey" PRIMARY KEY ("reviewRevisionId","basicCheckReasonId")
+);
+
+-- CreateTable
+CREATE TABLE "comments" (
+    "id" TEXT NOT NULL,
+    "submissionId" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "chartHash" TEXT NOT NULL,
+    "body" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "comment_reactions" (
+    "commentId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "emoji" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "comment_reactions_pkey" PRIMARY KEY ("commentId","userId","emoji")
 );
 
 -- CreateTable
@@ -254,10 +309,34 @@ CREATE UNIQUE INDEX "event_roles_eventId_userId_role_key" ON "event_roles"("even
 CREATE INDEX "submissions_eventId_idx" ON "submissions"("eventId");
 
 -- CreateIndex
+CREATE INDEX "submissions_stepartist_trgm_idx" ON "submissions" USING GIN ("stepartist" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "submissions_pack_trgm_idx" ON "submissions" USING GIN ("pack" gin_trgm_ops);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "charts_submissionId_key" ON "charts"("submissionId");
 
 -- CreateIndex
 CREATE INDEX "charts_hash_idx" ON "charts"("hash");
+
+-- CreateIndex
+CREATE INDEX "charts_title_trgm_idx" ON "charts" USING GIN ("title" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_title_romaji_trgm_idx" ON "charts" USING GIN ("titleRomaji" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_subtitle_trgm_idx" ON "charts" USING GIN ("subtitle" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_subtitle_romaji_trgm_idx" ON "charts" USING GIN ("subtitleRomaji" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_artist_trgm_idx" ON "charts" USING GIN ("artist" gin_trgm_ops);
+
+-- CreateIndex
+CREATE INDEX "charts_artist_romaji_trgm_idx" ON "charts" USING GIN ("artistRomaji" gin_trgm_ops);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "tech_tags_code_key" ON "tech_tags"("code");
@@ -285,6 +364,9 @@ CREATE INDEX "review_revisions_reviewId_idx" ON "review_revisions"("reviewId");
 
 -- CreateIndex
 CREATE INDEX "review_revisions_chartHash_idx" ON "review_revisions"("chartHash");
+
+-- CreateIndex
+CREATE INDEX "comments_submissionId_idx" ON "comments"("submissionId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "disqualification_reasons_eventId_code_key" ON "disqualification_reasons"("eventId", "code");
@@ -342,6 +424,18 @@ ALTER TABLE "review_revision_basic_checks" ADD CONSTRAINT "review_revision_basic
 
 -- AddForeignKey
 ALTER TABLE "review_revision_basic_checks" ADD CONSTRAINT "review_revision_basic_checks_basicCheckReasonId_fkey" FOREIGN KEY ("basicCheckReasonId") REFERENCES "basic_check_reasons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comments" ADD CONSTRAINT "comments_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "submissions"("fileId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comments" ADD CONSTRAINT "comments_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comment_reactions" ADD CONSTRAINT "comment_reactions_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "comments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comment_reactions" ADD CONSTRAINT "comment_reactions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "disqualification_reasons" ADD CONSTRAINT "disqualification_reasons_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "events"("id") ON DELETE SET NULL ON UPDATE CASCADE;
