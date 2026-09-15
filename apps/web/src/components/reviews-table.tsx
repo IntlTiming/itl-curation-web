@@ -23,7 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
 import { RATING_GRADIENT, STDEV_GRADIENT } from '@/lib/gradient-color';
-import { shortenTechTag } from '@/lib/tech-tags';
+import { shortenTechTag, sortTechTags } from '@/lib/tech-tags';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
 // Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
@@ -119,15 +119,28 @@ export function StdevCell({ value }: { value: number | null }) {
   );
 }
 
-function TechTagsCell({ techTags }: { techTags: string[] }) {
+// selectedTechTags is the Tech Tags filter's own selection (codes, e.g. "BR") - a submission's
+// claimed tag gets the filled/default badge style instead of the plain outline one when it's
+// one of the currently selected tags, so the tags driving the row's best-match rank are visible
+// at a glance instead of blending into the rest of the list.
+function TechTagsCell({
+  techTags,
+  selectedTechTags,
+}: {
+  techTags: string[];
+  selectedTechTags: string[];
+}) {
   if (techTags.length === 0) return '—';
   return (
     <div className="flex flex-wrap gap-1">
-      {techTags.map((label) => (
-        <Badge key={label} variant="outline">
-          {shortenTechTag(label)}
-        </Badge>
-      ))}
+      {sortTechTags(techTags).map((label) => {
+        const code = shortenTechTag(label);
+        return (
+          <Badge key={label} variant={selectedTechTags.includes(code) ? 'default' : 'outline'}>
+            {code}
+          </Badge>
+        );
+      })}
     </div>
   );
 }
@@ -332,6 +345,7 @@ export function ReviewsTable({
   onEditReview,
   sort,
   onSortChange,
+  selectedTechTags,
 }: {
   rows: ReviewsRow[];
   columnOrder: ReviewsColumnKey[];
@@ -342,6 +356,9 @@ export function ReviewsTable({
   // filters are - see use-reviews-sort.ts.
   sort: SortState;
   onSortChange: (sort: SortState) => void;
+  // The Tech Tags filter's own selection (codes) - highlighted in the Tech Tags column so the
+  // tags driving a row's best-match rank stand out from the rest of its claimed tags.
+  selectedTechTags: string[];
 }) {
   const sortedRows = useMemo(() => applySort(rows, sort), [rows, sort]);
 
@@ -373,7 +390,7 @@ export function ReviewsTable({
     pack: (row) => row.pack,
     stepartist: (row) => row.stepartist,
     submitter: (row) => row.submitter,
-    techTags: (row) => <TechTagsCell techTags={row.techTags} />,
+    techTags: (row) => <TechTagsCell techTags={row.techTags} selectedTechTags={selectedTechTags} />,
     reviewCount: (row) => row.reviewCount,
     avgRating: (row) => <RatingCell value={row.avgRating} />,
     minRating: (row) => <RatingCell value={row.minRating} />,

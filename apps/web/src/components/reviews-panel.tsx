@@ -120,6 +120,7 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           onEditReview={setActiveReviewFileId}
           sort={sort}
           onSortChange={setSort}
+          selectedTechTags={filters.techTags}
         />
       )}
 

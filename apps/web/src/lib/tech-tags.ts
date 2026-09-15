@@ -43,3 +43,20 @@ const TECH_TAG_CODE_BY_LABEL: Record<string, string> = Object.fromEntries(
 export function shortenTechTag(label: string): string {
   return TECH_TAG_CODE_BY_LABEL[label] ?? label;
 }
+
+const TECH_TAG_INDEX_BY_LABEL: Record<string, number> = Object.fromEntries(
+  TECH_TAGS.map((t, index) => [t.label, index]),
+);
+
+// Sorts a list of claimed tech tag labels into the same category-then-seed-list order as the
+// filter popover (see TECH_TAGS's own comment) - the API returns them alphabetical-by-label
+// instead (a stable order for its own purposes), so display call sites that want to match the
+// popover re-sort with this rather than trusting the API's order. Unrecognized labels sort last,
+// after every known tag.
+export function sortTechTags(labels: string[]): string[] {
+  return [...labels].sort(
+    (a, b) =>
+      (TECH_TAG_INDEX_BY_LABEL[a] ?? Number.MAX_SAFE_INTEGER) -
+      (TECH_TAG_INDEX_BY_LABEL[b] ?? Number.MAX_SAFE_INTEGER),
+  );
+}
