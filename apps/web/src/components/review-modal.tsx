@@ -1,5 +1,11 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { cn } from 'cn';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { ChartDetail } from '@/components/chart-detail';
+import {
+  GRADIENT_FILL_CLASSNAME,
+  GRADIENT_OUTLINE_CLASSNAME,
+  gradientCssVars,
+} from '@/components/gradient-badge';
 import { Loading } from '@/components/loading';
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { CmoddabilityIndicator, PublicConsentIndicator } from '@/components/reviews-table';
@@ -36,6 +42,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/use-auth';
 import { useBasicCheckReasons, type BasicCheckReason } from '@/hooks/use-basic-check-reasons';
 import { useSubmissionDetail } from '@/hooks/use-submission-detail';
+import {
+  PASSING_GRADIENT,
+  RATING_GRADIENT,
+  SCORING_GRADIENT,
+  type GradientRange,
+} from '@/lib/gradient-color';
 
 const RATING_OPTIONS = [0, 1, 1.5, 2, 2.5, 3];
 const PASSING_OPTIONS = [1, 2, 3, 4, 5];
@@ -134,6 +146,57 @@ function BasicCheckRow({
         </div>
       )}
     </div>
+  );
+}
+
+// Tints the trigger to the currently selected value's gradient color, same read at a glance as
+// GradientBadge elsewhere in the app - unset (null, "None") stays the plain untinted trigger,
+// since there's nothing on the 0-3/1-5/1-10 scale to color yet. The tint is applied via CSS
+// vars + Tailwind arbitrary-property classes (not a plain `style` background/border) so it's
+// still just a normal-specificity utility class that Radix's own focus-visible ring classes -
+// generated later in the stylesheet - continue to win over on focus, same reasoning as
+// ROW_TONE_CLASS coexisting with TableRow's hover:bg-muted/50 in reviews-table.tsx.
+function GradientSelectTrigger({
+  value,
+  gradient,
+}: {
+  value: number | null;
+  gradient: GradientRange;
+}) {
+  const tinted = value != null;
+  return (
+    <SelectTrigger
+      className={cn('w-full', tinted && GRADIENT_OUTLINE_CLASSNAME)}
+      style={
+        tinted ? gradientCssVars(value, gradient.min, gradient.max, gradient.direction) : undefined
+      }
+    >
+      <SelectValue placeholder="None" />
+    </SelectTrigger>
+  );
+}
+
+// Tints each option row by its own value, independent of what's currently selected - turns the
+// open dropdown into a quick color legend. Same CSS-var/arbitrary-class approach as
+// GradientSelectTrigger, so Radix's focus:bg-accent/focus:text-accent-foreground (also plain
+// utility classes) still shows through when an option is keyboard-highlighted or hovered.
+function GradientSelectItem({
+  value,
+  gradient,
+  children,
+}: {
+  value: number;
+  gradient: GradientRange;
+  children: ReactNode;
+}) {
+  return (
+    <SelectItem
+      value={String(value)}
+      className={GRADIENT_FILL_CLASSNAME}
+      style={gradientCssVars(value, gradient.min, gradient.max, gradient.direction)}
+    >
+      {children}
+    </SelectItem>
   );
 }
 
@@ -305,15 +368,13 @@ export function ReviewModal({
                       setForm({ ...form, rating: v === NONE_VALUE ? null : Number(v) })
                     }
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
+                    <GradientSelectTrigger value={form.rating} gradient={RATING_GRADIENT} />
                     <SelectContent>
                       <SelectItem value={NONE_VALUE}>None</SelectItem>
                       {RATING_OPTIONS.map((value) => (
-                        <SelectItem key={value} value={String(value)}>
+                        <GradientSelectItem key={value} value={value} gradient={RATING_GRADIENT}>
                           {value.toFixed(1)}
-                        </SelectItem>
+                        </GradientSelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -326,15 +387,13 @@ export function ReviewModal({
                       setForm({ ...form, passing: v === NONE_VALUE ? null : Number(v) })
                     }
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
+                    <GradientSelectTrigger value={form.passing} gradient={PASSING_GRADIENT} />
                     <SelectContent>
                       <SelectItem value={NONE_VALUE}>None</SelectItem>
                       {PASSING_OPTIONS.map((value) => (
-                        <SelectItem key={value} value={String(value)}>
+                        <GradientSelectItem key={value} value={value} gradient={PASSING_GRADIENT}>
                           {value}
-                        </SelectItem>
+                        </GradientSelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -347,15 +406,13 @@ export function ReviewModal({
                       setForm({ ...form, scoring: v === NONE_VALUE ? null : Number(v) })
                     }
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
+                    <GradientSelectTrigger value={form.scoring} gradient={SCORING_GRADIENT} />
                     <SelectContent>
                       <SelectItem value={NONE_VALUE}>None</SelectItem>
                       {SCORING_OPTIONS.map((value) => (
-                        <SelectItem key={value} value={String(value)}>
+                        <GradientSelectItem key={value} value={value} gradient={SCORING_GRADIENT}>
                           {value}
-                        </SelectItem>
+                        </GradientSelectItem>
                       ))}
                     </SelectContent>
                   </Select>

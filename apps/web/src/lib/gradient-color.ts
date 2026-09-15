@@ -7,6 +7,10 @@
 // an increasingly notable one (Stdev - see STDEV_GRADIENT below).
 export type GradientDirection = 'ascending' | 'descending' | 'toRed';
 
+// The three params every gradientColors call site needs together - RATING_GRADIENT etc. below
+// all satisfy this shape, so a component can accept "a gradient" as one prop instead of three.
+export type GradientRange = { min: number; max: number; direction: GradientDirection };
+
 function clampedT(value: number, min: number, max: number): number {
   if (max === min) return 0;
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
