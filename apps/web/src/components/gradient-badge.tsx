@@ -24,13 +24,24 @@ export function gradientCssVars(
 
 // Solid tinted fill, no border of its own - for an element that already reads as a discrete
 // chip (Badge, a Select option row).
+//
+// Uses Tailwind's arbitrary-VALUE syntax (bg-[var(...)]) on the named bg/text utilities, not
+// arbitrary-PROPERTY syntax ([background-color:var(...)]) - `cn` (this repo's tailwind-merge
+// replacement) only recognizes a conflict between two uses of the *same* utility name, so
+// bg-[var(...)] correctly displaces Badge's own unconditional `bg-primary`/`text-primary-
+// foreground`, while a raw [background-color:...] escape does not: both classes would survive
+// into the DOM and the browser's cascade order - not `cn` - would decide the winner, which is
+// exactly the bug this replaced (solid black/white badges in light mode, correct colors in dark
+// only because dark:-scoped rules happen to sort later in Tailwind's generated CSS).
 export const GRADIENT_FILL_CLASSNAME =
-  'border-transparent [background-color:var(--gradient-bg-light)] [color:var(--gradient-fg-light)] dark:[background-color:var(--gradient-bg-dark)] dark:[color:var(--gradient-fg-dark)]';
+  'border-transparent bg-[var(--gradient-bg-light)] text-[var(--gradient-fg-light)] dark:bg-[var(--gradient-bg-dark)] dark:text-[var(--gradient-fg-dark)]';
 
 // Tinted fill plus a border matching the text color - for a control that already draws its own
 // border at rest (a Select trigger), so it reads as "this control, tinted" rather than a pill.
+// Same arbitrary-VALUE reasoning as GRADIENT_FILL_CLASSNAME above - border-[var(...)] correctly
+// displaces SelectTrigger's own unconditional `border-input`.
 export const GRADIENT_OUTLINE_CLASSNAME =
-  '[background-color:var(--gradient-bg-light)] [color:var(--gradient-fg-light)] [border-color:var(--gradient-fg-light)] dark:[background-color:var(--gradient-bg-dark)] dark:[color:var(--gradient-fg-dark)] dark:[border-color:var(--gradient-fg-dark)]';
+  'bg-[var(--gradient-bg-light)] text-[var(--gradient-fg-light)] border-[var(--gradient-fg-light)] dark:bg-[var(--gradient-bg-dark)] dark:text-[var(--gradient-fg-dark)] dark:border-[var(--gradient-fg-dark)]';
 
 // A Badge whose fill/text color is computed from where `value` falls between `min` and `max` -
 // red at the "bad" end, green at the "good" end, yellow in between - rather than one of Badge's

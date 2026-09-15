@@ -253,13 +253,20 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
         <div className="flex flex-wrap gap-1">
           {row.basicChecks.map((check) =>
             check.level === 'DISQUALIFIED' ? (
-              <Badge key={check.id} variant="destructive">
+              // Both badges get an explicit border, not just a fill - the row itself is tinted
+              // the same amber/red family (REVIEWS_ROW_TONE_CLASS above), so a same-hue fill
+              // alone can end up nearly indistinguishable from the row behind it (this is what
+              // happened to the warning badge before the border was added: bg-amber-100 badge
+              // on a bg-amber-100 row is a completely invisible edge). destructive's own fill
+              // happens to differ enough from bg-red-100 to read on its own, but the border
+              // makes that robust rather than incidental.
+              <Badge key={check.id} variant="destructive" className="border-destructive/30">
                 {check.label}
               </Badge>
             ) : (
               <Badge
                 key={check.id}
-                className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400"
+                className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-400"
               >
                 {check.label}
               </Badge>
