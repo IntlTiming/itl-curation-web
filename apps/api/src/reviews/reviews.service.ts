@@ -207,7 +207,11 @@ export function buildReviewStatsFragment(chartHashRef: Prisma.Sql): Prisma.Sql {
       AVG(rating)::float8  AS avg_rating,
       MIN(rating)          AS min_rating,
       MAX(rating)          AS max_rating,
-      STDDEV_POP(rating)   AS stdev_rating
+      -- STDDEV_POP of a single value is 0, not NULL - misleadingly reading as "reviewers
+      -- agree" rather than "not enough ratings to measure agreement yet". COUNT(rating) (not
+      -- review_count/COUNT(*)) since rating itself is nullable - a review can exist with no
+      -- rating set, and that shouldn't count toward "enough data".
+      CASE WHEN COUNT(rating) < 2 THEN NULL ELSE STDDEV_POP(rating) END AS stdev_rating
     FROM reviews r
     WHERE r."chartHash" = ${chartHashRef}
   `;

@@ -4,6 +4,7 @@ import { Ban, ChevronDown, ChevronUp, Globe, SquareCheck, SquarePen } from 'luci
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
+import { GradientBadge } from '@/components/gradient-badge';
 import {
   REVIEWS_COLUMN_LABELS,
   type ReviewsColumnKey,
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
+import { RATING_GRADIENT, STDEV_GRADIENT } from '@/lib/gradient-color';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
 // Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
@@ -89,6 +91,31 @@ const RIGHT_ALIGNED_COLUMNS = new Set<ReviewsColumnKey>([
 // the API - null means no active review on this chart carries a rating.
 export function formatRating(value: number | null): string {
   return value == null ? '—' : value.toFixed(2);
+}
+
+// A rating-scale value (a single review's rating, or an avg/min/max derived from one) shown in
+// a red/yellow/green GradientBadge - null stays a plain dash rather than an oddly-colored empty
+// badge.
+export function RatingCell({ value }: { value: number | null }) {
+  if (value == null) return formatRating(value);
+  return (
+    <GradientBadge value={value} {...RATING_GRADIENT}>
+      {formatRating(value)}
+    </GradientBadge>
+  );
+}
+
+// Stdev is a spread statistic, not a quality score - "good"/"bad" here means low/high
+// disagreement among reviewers, not the rating itself - so it gets its own gradient
+// (STDEV_GRADIENT) clipped well below RatingCell's 0-3 domain. See that constant's comment for
+// why 1 (not the mathematical 1.5 ceiling) is the red end.
+export function StdevCell({ value }: { value: number | null }) {
+  if (value == null) return formatRating(value);
+  return (
+    <GradientBadge value={value} {...STDEV_GRADIENT}>
+      {formatRating(value)}
+    </GradientBadge>
+  );
 }
 
 function columnClassName(key: ReviewsColumnKey): string | undefined {
@@ -323,10 +350,10 @@ export function ReviewsTable({
     stepartist: (row) => row.stepartist,
     submitter: (row) => row.submitter,
     reviewCount: (row) => row.reviewCount,
-    avgRating: (row) => formatRating(row.avgRating),
-    minRating: (row) => formatRating(row.minRating),
-    maxRating: (row) => formatRating(row.maxRating),
-    stdevRating: (row) => formatRating(row.stdevRating),
+    avgRating: (row) => <RatingCell value={row.avgRating} />,
+    minRating: (row) => <RatingCell value={row.minRating} />,
+    maxRating: (row) => <RatingCell value={row.maxRating} />,
+    stdevRating: (row) => <StdevCell value={row.stdevRating} />,
     commentCount: (row) => row.commentCount,
     lastActivity: (row) => (row.lastActivity ? format(new Date(row.lastActivity), 'PP p') : '—'),
   };

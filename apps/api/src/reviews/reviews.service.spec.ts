@@ -1,8 +1,9 @@
-import { Playstyle } from '@prisma/client';
+import { Playstyle, Prisma } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import type { ReviewsQueryDto } from './dto/reviews-query.dto.js';
 import {
   buildBaseWhereFragments,
+  buildReviewStatsFragment,
   mapRawReviewRow,
   reviewFieldsChanged,
 } from './reviews.service.js';
@@ -106,6 +107,23 @@ describe('buildBaseWhereFragments', () => {
     const values = fragments.flatMap((f) => f.values);
 
     expect(values).toContain('%\\%\\_%');
+  });
+});
+
+describe('buildReviewStatsFragment', () => {
+  it('guards stdev_rating with a CASE that nulls it out below 2 non-null ratings', () => {
+    const fragment = buildReviewStatsFragment(Prisma.sql`c.hash`);
+
+    expect(fragment.sql).toContain('CASE WHEN COUNT(rating) < 2 THEN NULL');
+    expect(fragment.sql).toContain('STDDEV_POP(rating)');
+  });
+
+  it('guards on COUNT(rating), not review_count/COUNT(*), since rating is nullable', () => {
+    const fragment = buildReviewStatsFragment(Prisma.sql`c.hash`);
+    // review_count itself must stay COUNT(*) (reviews with no rating still count as reviews) -
+    // only the stdev guard should key off COUNT(rating).
+    expect(fragment.sql).toContain('COUNT(*)');
+    expect(fragment.sql).not.toContain('CASE WHEN COUNT(*) < 2');
   });
 });
 
