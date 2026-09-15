@@ -12,6 +12,7 @@ import { ImportModule } from './import/import.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
+import { SubmittersModule } from './submitters/submitters.module.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     EventsModule,
     ImportModule,
     SubmissionsModule,
+    SubmittersModule,
     ReviewsModule,
     CommentsModule,
     BasicCheckReasonsModule,

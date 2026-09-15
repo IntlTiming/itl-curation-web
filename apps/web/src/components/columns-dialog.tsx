@@ -17,12 +17,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from 'cn';
 import { Columns3, GripVertical, RotateCcw } from 'lucide-react';
-import {
-  FORCED_VISIBLE_REVIEWS_COLUMNS,
-  REVIEWS_COLUMN_LABELS,
-  type ReviewsColumnKey,
-  type ReviewsColumnVisibility,
-} from '@/components/reviews-columns';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -36,22 +30,30 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
+// Generic column-visibility/reorder dialog, shared by every table with an "Edit columns"
+// button (Reviews, Submitters, ...) - the only per-table pieces are the column key set,
+// its labels, and which keys are forced-visible, all passed in as props rather than
+// hardcoded here.
+
 // One draggable row. Only its position is draggable - visibility is still a plain checkbox,
-// forced-checked and disabled for Meter/Title, unaffected by drag order.
-function SortableColumnRow({
+// forced-checked and disabled for forced-visible columns, unaffected by drag order.
+function SortableColumnRow<K extends string>({
   columnKey,
+  label,
+  forced,
   visibility,
   onVisibilityChange,
 }: {
-  columnKey: ReviewsColumnKey;
-  visibility: ReviewsColumnVisibility;
-  onVisibilityChange: (next: ReviewsColumnVisibility) => void;
+  columnKey: K;
+  label: string;
+  forced: boolean;
+  visibility: Record<K, boolean>;
+  onVisibilityChange: (next: Record<K, boolean>) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: columnKey,
   });
-  const forced = FORCED_VISIBLE_REVIEWS_COLUMNS.includes(columnKey);
-  const id = `reviews-column-${columnKey}`;
+  const id = `column-${columnKey}`;
 
   return (
     <div
@@ -65,7 +67,7 @@ function SortableColumnRow({
       <button
         type="button"
         className="text-muted-foreground touch-none active:cursor-grabbing"
-        aria-label={`Reorder ${REVIEWS_COLUMN_LABELS[columnKey]}`}
+        aria-label={`Reorder ${label}`}
         {...attributes}
         {...listeners}
       >
@@ -79,23 +81,29 @@ function SortableColumnRow({
           onVisibilityChange({ ...visibility, [columnKey]: checked === true })
         }
       />
-      <Label htmlFor={id}>{REVIEWS_COLUMN_LABELS[columnKey]}</Label>
+      <Label htmlFor={id}>{label}</Label>
     </div>
   );
 }
 
-export function ReviewsColumnsDialog({
+export function ColumnsDialog<K extends string>({
   order,
   onOrderChange,
   visibility,
   onVisibilityChange,
   onReset,
+  labels,
+  forcedVisible,
+  description,
 }: {
-  order: ReviewsColumnKey[];
-  onOrderChange: (next: ReviewsColumnKey[]) => void;
-  visibility: ReviewsColumnVisibility;
-  onVisibilityChange: (next: ReviewsColumnVisibility) => void;
+  order: K[];
+  onOrderChange: (next: K[]) => void;
+  visibility: Record<K, boolean>;
+  onVisibilityChange: (next: Record<K, boolean>) => void;
   onReset: () => void;
+  labels: Record<K, string>;
+  forcedVisible: K[];
+  description: string;
 }) {
   // A small pointer-move threshold before a drag starts, so a plain click on the checkbox or
   // label doesn't get eaten as an accidental drag.
@@ -107,8 +115,8 @@ export function ReviewsColumnsDialog({
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = order.indexOf(active.id as ReviewsColumnKey);
-    const newIndex = order.indexOf(over.id as ReviewsColumnKey);
+    const oldIndex = order.indexOf(active.id as K);
+    const newIndex = order.indexOf(over.id as K);
     onOrderChange(arrayMove(order, oldIndex, newIndex));
   }
 
@@ -123,9 +131,7 @@ export function ReviewsColumnsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit columns</DialogTitle>
-          <DialogDescription>
-            Drag to reorder, or check a column to show or hide it in the Reviews table.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
@@ -134,6 +140,8 @@ export function ReviewsColumnsDialog({
                 <SortableColumnRow
                   key={key}
                   columnKey={key}
+                  label={labels[key]}
+                  forced={forcedVisible.includes(key)}
                   visibility={visibility}
                   onVisibilityChange={onVisibilityChange}
                 />

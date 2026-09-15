@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Loading } from '@/components/loading';
 import { ReviewModal } from '@/components/review-modal';
+import { ColumnsDialog } from '@/components/columns-dialog';
 import {
   DEFAULT_REVIEWS_COLUMN_VISIBILITY,
+  FORCED_VISIBLE_REVIEWS_COLUMNS,
+  REVIEWS_COLUMN_LABELS,
   REVIEWS_COLUMN_ORDER,
   REVIEWS_COLUMN_ORDER_STORAGE_KEY,
   REVIEWS_COLUMN_STORAGE_KEY,
@@ -10,7 +13,6 @@ import {
   sanitizeColumnVisibility,
   type ReviewsColumnVisibility,
 } from '@/components/reviews-columns';
-import { ReviewsColumnsDialog } from '@/components/reviews-columns-dialog';
 import { ReviewsFilterBar } from '@/components/reviews-filter-bar';
 import { ReviewsTable } from '@/components/reviews-table';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
@@ -83,12 +85,15 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           onReset={resetFilters}
           meterBounds={result.status === 'loaded' ? result.meterBounds : null}
         />
-        <ReviewsColumnsDialog
+        <ColumnsDialog
           order={sanitizedColumnOrder}
           onOrderChange={setColumnOrder}
           visibility={sanitizedColumnVisibility}
           onVisibilityChange={handleColumnVisibilityChange}
           onReset={handleResetColumns}
+          labels={REVIEWS_COLUMN_LABELS}
+          forcedVisible={FORCED_VISIBLE_REVIEWS_COLUMNS}
+          description="Drag to reorder, or check a column to show or hide it in the Reviews table."
         />
       </div>
 

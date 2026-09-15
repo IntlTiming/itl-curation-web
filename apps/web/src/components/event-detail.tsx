@@ -1,9 +1,10 @@
-import { ClipboardCheck, Inbox, Upload } from 'lucide-react';
+import { ClipboardCheck, Inbox, Upload, Users } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
 import { ReviewsPanel } from '@/components/reviews-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
+import { SubmittersPanel } from '@/components/submitters-panel';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEvent } from '@/hooks/use-event';
@@ -67,6 +68,10 @@ export function EventDetail() {
           <Inbox />
           Submissions
         </TabsTrigger>
+        <TabsTrigger value="submitters">
+          <Users />
+          Submitters
+        </TabsTrigger>
         {event.isEventAdmin && (
           <TabsTrigger value="import">
             <Upload />
@@ -79,6 +84,9 @@ export function EventDetail() {
       </TabsContent>
       <TabsContent value="submissions">
         <SubmissionsPanel eventSlug={event.slug} />
+      </TabsContent>
+      <TabsContent value="submitters">
+        <SubmittersPanel eventSlug={event.slug} />
       </TabsContent>
       {event.isEventAdmin && (
         <TabsContent value="import">
