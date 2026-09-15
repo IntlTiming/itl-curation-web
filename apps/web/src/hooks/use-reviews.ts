@@ -29,6 +29,9 @@ export type ReviewsRow = {
   minRating: number | null;
   maxRating: number | null;
   stdevRating: number | null;
+  // Whether the current user already has a review on this exact submission (by fileId) - lets
+  // the Add/Edit icon distinguish the two states.
+  hasOwnReview: boolean;
 };
 
 export type ReviewsMeterBounds = { min: number; max: number } | null;

@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Loading } from '@/components/loading';
+import { ReviewModal } from '@/components/review-modal';
 import {
   DEFAULT_REVIEWS_COLUMN_VISIBILITY,
   REVIEWS_COLUMN_ORDER,
@@ -14,6 +15,8 @@ import { ReviewsTable } from '@/components/reviews-table';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useReviews } from '@/hooks/use-reviews';
 import { useReviewsFilters, type ReviewsFilters } from '@/hooks/use-reviews-filters';
+import { useReviewsSort } from '@/hooks/use-reviews-sort';
+import { useScrollRestoration } from '@/hooks/use-scroll-restoration';
 
 // "Showing x of y singles/doubles submissions" when any filter besides Playstyle narrows the
 // result; simplified to "Showing y singles/doubles submissions" when nothing else does, since
@@ -33,7 +36,10 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
 
 export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
   const { filters, setFilters, resetFilters } = useReviewsFilters(eventSlug);
+  const { sort, setSort } = useReviewsSort(eventSlug);
   const result = useReviews(eventSlug, filters);
+  useScrollRestoration(`reviews:${eventSlug}`, result.status === 'loaded');
+  const [activeReviewFileId, setActiveReviewFileId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] = useLocalStorageState(
     REVIEWS_COLUMN_STORAGE_KEY,
     DEFAULT_REVIEWS_COLUMN_VISIBILITY,
@@ -92,6 +98,20 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           rows={result.rows}
           columnOrder={sanitizedColumnOrder}
           columnVisibility={sanitizedColumnVisibility}
+          eventSlug={eventSlug}
+          onEditReview={setActiveReviewFileId}
+          sort={sort}
+          onSortChange={setSort}
+        />
+      )}
+
+      {activeReviewFileId && (
+        <ReviewModal
+          key={activeReviewFileId}
+          eventSlug={eventSlug}
+          fileId={activeReviewFileId}
+          onClose={() => setActiveReviewFileId(null)}
+          onSaved={result.refetch}
         />
       )}
     </div>

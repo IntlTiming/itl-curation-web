@@ -1,6 +1,7 @@
 import { cn } from 'cn';
-import { Ban, ChevronDown, ChevronUp, Globe, SquarePen } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { Ban, ChevronDown, ChevronUp, Globe, SquareCheck, SquarePen } from 'lucide-react';
+import { useMemo, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
 import {
   REVIEWS_COLUMN_LABELS,
@@ -20,7 +21,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
-type SortColumn =
+// Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
+// and validate this same state from outside the table - same cross-file split as
+// use-submission-detail.ts importing ChartFields/SubmissionFields from their components.
+export type SortColumn =
   | 'meter'
   | 'title'
   | 'pack'
@@ -31,9 +35,9 @@ type SortColumn =
   | 'minRating'
   | 'maxRating'
   | 'stdevRating';
-type SortState = { column: SortColumn; direction: 'asc' | 'desc' } | null;
+export type SortState = { column: SortColumn; direction: 'asc' | 'desc' } | null;
 
-const SORTABLE_COLUMNS = new Set<SortColumn>([
+export const SORTABLE_COLUMNS = new Set<SortColumn>([
   'meter',
   'title',
   'pack',
@@ -73,7 +77,7 @@ const RIGHT_ALIGNED_COLUMNS = new Set<ReviewsColumnKey>([
 
 // Review.rating (and its avg/min/max/stdev derivatives) is already scaled to a plain decimal by
 // the API - null means no active review on this chart carries a rating.
-function formatRating(value: number | null): string {
+export function formatRating(value: number | null): string {
   return value == null ? '—' : value.toFixed(2);
 }
 
@@ -123,12 +127,12 @@ function applySort(rows: ReviewsRow[], sort: SortState): ReviewsRow[] {
 // significant enough that CMOD-ability isn't automatically okay - see the Reviews plan's
 // cmoddability rule. Hidden entirely (including when hasSignificantTimingChanges is false)
 // whenever the chart is CMOD OKAY, since that's the by-far-most-common case.
-function CmoddabilityIndicator({
+export function CmoddabilityIndicator({
   chart,
   cmodPreference,
 }: {
   chart: Pick<ReviewsChart, 'hasSignificantTimingChanges'>;
-  cmodPreference: ReviewsRow['cmodPreference'];
+  cmodPreference: string;
 }) {
   if (!chart.hasSignificantTimingChanges || cmodPreference === 'CMOD_OKAY') return null;
   const tooltip = cmodPreference === 'NO_CMOD' ? 'NO CMOD' : 'Unauthorized';
@@ -146,12 +150,12 @@ function CmoddabilityIndicator({
 // being reviewed publicly. Silent for DOES_NOT_CONSENT/NOT_STEPARTIST/unanswered - absence
 // already communicates "not confirmed as publicly reviewable," mirroring how the
 // cmoddability icon stays silent for the default-okay case.
-function PublicConsentIndicator({
+export function PublicConsentIndicator({
   submitter,
   consentToPublicReview,
 }: {
   submitter: string;
-  consentToPublicReview: ReviewsRow['consentToPublicReview'];
+  consentToPublicReview: string | null;
 }) {
   if (consentToPublicReview !== 'CONSENTS') return null;
   return (
@@ -167,13 +171,18 @@ function PublicConsentIndicator({
   );
 }
 
-function TitleCell({ row }: { row: ReviewsRow }) {
+function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
   const title = titleOf(row.chart);
   const subtitle = row.chart.subtitleRomaji || row.chart.subtitle;
   return (
     <div className="flex flex-col">
       <span className="inline-flex items-center gap-1.5">
-        {title}
+        <Link
+          to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(row.fileId)}`}
+          className="hover:underline"
+        >
+          {title}
+        </Link>
         <CmoddabilityIndicator chart={row.chart} cmodPreference={row.cmodPreference} />
         <PublicConsentIndicator
           submitter={row.submitter}
@@ -218,39 +227,48 @@ export function ReviewsTable({
   rows,
   columnOrder,
   columnVisibility,
+  eventSlug,
+  onEditReview,
+  sort,
+  onSortChange,
 }: {
   rows: ReviewsRow[];
   columnOrder: ReviewsColumnKey[];
   columnVisibility: ReviewsColumnVisibility;
+  eventSlug: string;
+  onEditReview: (fileId: string) => void;
+  // Lifted to the caller (rather than owned here) so it can be persisted the same way the
+  // filters are - see use-reviews-sort.ts.
+  sort: SortState;
+  onSortChange: (sort: SortState) => void;
 }) {
-  const [sort, setSort] = useState<SortState>(null);
   const sortedRows = useMemo(() => applySort(rows, sort), [rows, sort]);
 
   function toggleSort(column: SortColumn) {
-    setSort((prev) => {
-      if (!prev || prev.column !== column) return { column, direction: 'asc' };
-      if (prev.direction === 'asc') return { column, direction: 'desc' };
-      return null; // third click reverts to the server's default row order
-    });
+    if (!sort || sort.column !== column) {
+      onSortChange({ column, direction: 'asc' });
+    } else if (sort.direction === 'asc') {
+      onSortChange({ column, direction: 'desc' });
+    } else {
+      onSortChange(null); // third click reverts to the server's default row order
+    }
   }
 
   const cellRenderers: Record<ReviewsColumnKey, (row: ReviewsRow) => ReactNode> = {
-    addEdit: () => (
+    addEdit: (row) => (
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="Edit review"
-        onClick={() => {
-          // no-op for now - review editing isn't built yet
-        }}
+        aria-label={row.hasOwnReview ? 'Edit your review' : 'Add a review'}
+        onClick={() => onEditReview(row.fileId)}
       >
-        <SquarePen />
+        {row.hasOwnReview ? <SquareCheck /> : <SquarePen />}
       </Button>
     ),
     meter: (row) => (
       <DifficultyBadge label={chartBadgeLabel(row.chart)} difficulty={row.chart.difficulty} />
     ),
-    title: (row) => <TitleCell row={row} />,
+    title: (row) => <TitleCell row={row} eventSlug={eventSlug} />,
     pack: (row) => row.pack,
     stepartist: (row) => row.stepartist,
     submitter: (row) => row.submitter,
