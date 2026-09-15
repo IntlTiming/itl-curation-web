@@ -4,11 +4,13 @@ import { Ban, ChevronDown, ChevronUp, Globe, SquareCheck, SquarePen } from 'luci
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
+import { GradientBadge } from '@/components/gradient-badge';
 import {
   REVIEWS_COLUMN_LABELS,
   type ReviewsColumnKey,
   type ReviewsColumnVisibility,
 } from '@/components/reviews-columns';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -20,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
+import { RATING_GRADIENT, STDEV_GRADIENT } from '@/lib/gradient-color';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
 // Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
@@ -90,12 +93,52 @@ export function formatRating(value: number | null): string {
   return value == null ? '—' : value.toFixed(2);
 }
 
+// A rating-scale value (a single review's rating, or an avg/min/max derived from one) shown in
+// a red/yellow/green GradientBadge - null stays a plain dash rather than an oddly-colored empty
+// badge.
+export function RatingCell({ value }: { value: number | null }) {
+  if (value == null) return formatRating(value);
+  return (
+    <GradientBadge value={value} {...RATING_GRADIENT}>
+      {formatRating(value)}
+    </GradientBadge>
+  );
+}
+
+// Stdev is a spread statistic, not a quality score - "good"/"bad" here means low/high
+// disagreement among reviewers, not the rating itself - so it gets its own gradient
+// (STDEV_GRADIENT) clipped well below RatingCell's 0-3 domain. See that constant's comment for
+// why 1 (not the mathematical 1.5 ceiling) is the red end.
+export function StdevCell({ value }: { value: number | null }) {
+  if (value == null) return formatRating(value);
+  return (
+    <GradientBadge value={value} {...STDEV_GRADIENT}>
+      {formatRating(value)}
+    </GradientBadge>
+  );
+}
+
 function columnClassName(key: ReviewsColumnKey): string | undefined {
   return cn(NARROW_COLUMNS.has(key) && 'w-px', RIGHT_ALIGNED_COLUMNS.has(key) && 'text-right');
 }
 
 function titleOf(chart: ReviewsChart): string {
   return chart.titleRomaji || chart.title;
+}
+
+// Same amber/red tint scale as submission-row.tsx's ROW_TONE_CLASS (ignored/error) - reused
+// here for a different pair of row-level states, so kept as its own small constant rather than
+// importing that submissions-domain one under a misleading key name. Disqualified wins over
+// warning when a chart has both (see rowToneClassName below).
+const REVIEWS_ROW_TONE_CLASS = {
+  warning: 'bg-amber-100 dark:bg-amber-500/25',
+  disqualified: 'bg-red-100 dark:bg-red-500/25',
+} as const;
+
+function rowToneClassName(row: ReviewsRow): string | undefined {
+  if (row.hasDisqualification) return REVIEWS_ROW_TONE_CLASS.disqualified;
+  if (row.hasWarning) return REVIEWS_ROW_TONE_CLASS.warning;
+  return undefined;
 }
 
 // Meter's own column-sort uses only chart.meter (per spec) - a narrower, independent
@@ -151,7 +194,7 @@ export function CmoddabilityIndicator({
   cmodPreference: string;
 }) {
   if (!chart.hasSignificantTimingChanges || cmodPreference === 'CMOD_OKAY') return null;
-  const tooltip = cmodPreference === 'NO_CMOD' ? 'NO CMOD' : 'Unauthorized';
+  const tooltip = cmodPreference === 'NO_CMOD' ? 'NO CMOD' : 'NO CMOD (not the author)';
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -191,7 +234,7 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
   const title = titleOf(row.chart);
   const subtitle = row.chart.subtitleRomaji || row.chart.subtitle;
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-1">
       <span className="inline-flex items-center gap-1.5">
         <Link
           to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(row.fileId)}`}
@@ -206,6 +249,31 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
         />
       </span>
       {subtitle && <span className="text-muted-foreground text-xs">{subtitle}</span>}
+      {row.basicChecks.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {row.basicChecks.map((check) =>
+            check.level === 'DISQUALIFIED' ? (
+              // Both badges get an explicit border, not just a fill - the row itself is tinted
+              // the same amber/red family (REVIEWS_ROW_TONE_CLASS above), so a same-hue fill
+              // alone can end up nearly indistinguishable from the row behind it (this is what
+              // happened to the warning badge before the border was added: bg-amber-100 badge
+              // on a bg-amber-100 row is a completely invisible edge). destructive's own fill
+              // happens to differ enough from bg-red-100 to read on its own, but the border
+              // makes that robust rather than incidental.
+              <Badge key={check.id} variant="destructive" className="border-destructive/30">
+                {check.label}
+              </Badge>
+            ) : (
+              <Badge
+                key={check.id}
+                className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-400"
+              >
+                {check.label}
+              </Badge>
+            ),
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -289,10 +357,10 @@ export function ReviewsTable({
     stepartist: (row) => row.stepartist,
     submitter: (row) => row.submitter,
     reviewCount: (row) => row.reviewCount,
-    avgRating: (row) => formatRating(row.avgRating),
-    minRating: (row) => formatRating(row.minRating),
-    maxRating: (row) => formatRating(row.maxRating),
-    stdevRating: (row) => formatRating(row.stdevRating),
+    avgRating: (row) => <RatingCell value={row.avgRating} />,
+    minRating: (row) => <RatingCell value={row.minRating} />,
+    maxRating: (row) => <RatingCell value={row.maxRating} />,
+    stdevRating: (row) => <StdevCell value={row.stdevRating} />,
     commentCount: (row) => row.commentCount,
     lastActivity: (row) => (row.lastActivity ? format(new Date(row.lastActivity), 'PP p') : '—'),
   };
@@ -325,7 +393,7 @@ export function ReviewsTable({
       </TableHeader>
       <TableBody>
         {sortedRows.map((row) => (
-          <TableRow key={row.fileId}>
+          <TableRow key={row.fileId} className={rowToneClassName(row)}>
             {visibleColumns.map((key) => (
               <TableCell key={key} className={columnClassName(key)}>
                 {cellRenderers[key](row)}

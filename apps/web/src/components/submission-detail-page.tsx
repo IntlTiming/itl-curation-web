@@ -4,13 +4,15 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { chartBadgeLabel, ChartDetail, DifficultyBadge } from '@/components/chart-detail';
 import { CommentsPanel } from '@/components/comments-panel';
+import { GradientBadge } from '@/components/gradient-badge';
 import { Loading } from '@/components/loading';
 import { MarkdownContent } from '@/components/markdown-content';
 import { ReviewModal } from '@/components/review-modal';
 import {
   CmoddabilityIndicator,
-  formatRating,
   PublicConsentIndicator,
+  RatingCell,
+  StdevCell,
 } from '@/components/reviews-table';
 import { shortenTechTag, SubmissionDetail } from '@/components/submission-detail';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -29,6 +31,7 @@ import {
   type SubmissionDetailSubmission,
 } from '@/hooks/use-submission-detail';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
+import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
 
 // The only submission-form "focus" value where singleTechTag is meaningful - see
 // submissions-import.mapper.spec.ts's sample entry, which pairs this exact focus string
@@ -154,15 +157,30 @@ function ReviewCard({ review }: { review: SubmissionDetailReview }) {
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-4 text-xs">
-        <span>
-          <span className="text-muted-foreground">Rating:</span> {formatRating(review.rating)}
+      <div className="flex flex-wrap items-center gap-4 text-xs">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Rating:</span>
+          <RatingCell value={review.rating} />
         </span>
-        <span>
-          <span className="text-muted-foreground">Passing:</span> {review.passing ?? '—'}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Passing:</span>
+          {review.passing == null ? (
+            '—'
+          ) : (
+            <GradientBadge value={review.passing} {...PASSING_GRADIENT}>
+              {review.passing}
+            </GradientBadge>
+          )}
         </span>
-        <span>
-          <span className="text-muted-foreground">Scoring:</span> {review.scoring ?? '—'}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Scoring:</span>
+          {review.scoring == null ? (
+            '—'
+          ) : (
+            <GradientBadge value={review.scoring} {...SCORING_GRADIENT}>
+              {review.scoring}
+            </GradientBadge>
+          )}
         </span>
       </div>
 
@@ -271,25 +289,25 @@ export function SubmissionDetailPage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 lg:flex-row lg:items-start">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
               <span>
                 <span className="text-muted-foreground">Reviews:</span> {stats?.reviewCount ?? 0}
               </span>
-              <span>
-                <span className="text-muted-foreground">Avg. rating:</span>{' '}
-                {formatRating(stats?.avgRating ?? null)}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-muted-foreground">Avg. rating:</span>
+                <RatingCell value={stats?.avgRating ?? null} />
               </span>
-              <span>
-                <span className="text-muted-foreground">Min:</span>{' '}
-                {formatRating(stats?.minRating ?? null)}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-muted-foreground">Min:</span>
+                <RatingCell value={stats?.minRating ?? null} />
               </span>
-              <span>
-                <span className="text-muted-foreground">Max:</span>{' '}
-                {formatRating(stats?.maxRating ?? null)}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-muted-foreground">Max:</span>
+                <RatingCell value={stats?.maxRating ?? null} />
               </span>
-              <span>
-                <span className="text-muted-foreground">Stdev:</span>{' '}
-                {formatRating(stats?.stdevRating ?? null)}
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-muted-foreground">Stdev:</span>
+                <StdevCell value={stats?.stdevRating ?? null} />
               </span>
             </div>
             {submission.chart && (
