@@ -26,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'web', 'dist'),
-      exclude: ['/api/(.*)'],
+      exclude: ['/api/{*splat}'],
     }),
     PrismaModule,
     AuthModule,
