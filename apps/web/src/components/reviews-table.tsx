@@ -194,7 +194,7 @@ export function CmoddabilityIndicator({
   cmodPreference: string;
 }) {
   if (!chart.hasSignificantTimingChanges || cmodPreference === 'CMOD_OKAY') return null;
-  const tooltip = cmodPreference === 'NO_CMOD' ? 'NO CMOD' : 'Unauthorized';
+  const tooltip = cmodPreference === 'NO_CMOD' ? 'NO CMOD' : 'NO CMOD (not the author)';
   return (
     <Tooltip>
       <TooltipTrigger asChild>
