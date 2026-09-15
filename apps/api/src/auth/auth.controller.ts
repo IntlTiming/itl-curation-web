@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { User } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { AuthService, type DiscordProfile } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { DiscordAuthGuard } from './discord-auth.guard.js';
+import { UpdateDisplayNameDto } from './dto/update-display-name.dto.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { SESSION_COOKIE_NAME } from './jwt.strategy.js';
 
@@ -42,6 +43,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: User) {
     return user;
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  updateMe(@CurrentUser() user: User, @Body() dto: UpdateDisplayNameDto) {
+    return this.auth.updateDisplayName(user.id, dto.displayName);
   }
 
   @Post('logout')

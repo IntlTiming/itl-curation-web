@@ -21,7 +21,9 @@ function App() {
           <AppBreadcrumb />
           <div className="flex items-center gap-2">
             <ModeToggle />
-            {auth.status === 'authenticated' && <UserMenu user={auth.user} />}
+            {auth.status === 'authenticated' && (
+              <UserMenu user={auth.user} onUpdateDisplayName={auth.updateDisplayName} />
+            )}
           </div>
         </header>
 

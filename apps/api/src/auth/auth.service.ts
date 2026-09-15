@@ -56,4 +56,13 @@ export class AuthService {
   async validateUserId(userId: string) {
     return this.prisma.user.findUnique({ where: { id: userId } });
   }
+
+  async updateDisplayName(userId: string, displayName: string) {
+    const trimmed = displayName.trim();
+    return this.prisma.user.update({
+      where: { id: userId },
+      // Empty string means "no override" - store null so discordUsername is used as fallback.
+      data: { displayName: trimmed === '' ? null : trimmed },
+    });
+  }
 }
