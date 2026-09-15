@@ -1,6 +1,6 @@
 import { cn } from 'cn';
 import { format } from 'date-fns';
-import { Ban, ChevronDown, ChevronUp, Globe, SquareCheck, SquarePen } from 'lucide-react';
+import { Ban, ChevronDown, ChevronUp, GlobeOff, SquareCheck, SquarePen } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
@@ -205,10 +205,10 @@ export function CmoddabilityIndicator({
   );
 }
 
-// Shown inline after the title whenever the submitter has explicitly consented to their chart
-// being reviewed publicly. Silent for DOES_NOT_CONSENT/NOT_STEPARTIST/unanswered - absence
-// already communicates "not confirmed as publicly reviewable," mirroring how the
-// cmoddability icon stays silent for the default-okay case.
+// Shown inline after the title whenever the submitter has explicitly withheld public-review
+// consent or isn't the stepartist. Silent for CONSENTS/unanswered - absence already
+// communicates "no objection on file," mirroring how the cmoddability icon stays silent for
+// the default-okay case.
 export function PublicConsentIndicator({
   submitter,
   consentToPublicReview,
@@ -216,16 +216,19 @@ export function PublicConsentIndicator({
   submitter: string;
   consentToPublicReview: string | null;
 }) {
-  if (consentToPublicReview !== 'CONSENTS') return null;
+  if (consentToPublicReview !== 'DOES_NOT_CONSENT' && consentToPublicReview !== 'NOT_STEPARTIST') {
+    return null;
+  }
+  const tooltip =
+    consentToPublicReview === 'NOT_STEPARTIST'
+      ? `${submitter} is not the stepartist`
+      : `${submitter} does NOT consent to public review`;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Globe
-          className="text-muted-foreground size-3.5 shrink-0"
-          aria-label="Consented to public review"
-        />
+        <GlobeOff className="text-destructive size-3.5 shrink-0" aria-label={tooltip} />
       </TooltipTrigger>
-      <TooltipContent>{submitter} consented to public review</TooltipContent>
+      <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>
   );
 }
