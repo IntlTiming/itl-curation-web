@@ -13,8 +13,8 @@ import {
   SubmissionStatusBadge,
   type RowTone,
 } from '@/components/submission-row';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Table,
   TableBody,
@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSubmissions } from '@/hooks/use-submissions';
 
 // This table matches ImportPanel's actionable-rows table look - shared row pieces
@@ -30,13 +31,23 @@ import { useSubmissions } from '@/hooks/use-submissions';
 // This one stays a plain listing rather than a diff view (no insert/update/kind column,
 // no previous* values), so the two tables aren't merged into one component.
 
+// A plain three-way radio selection (always exactly one option active) rather than the
+// toggleable checkboxes this used to be - "Show all" is itself an explicit option, so there's
+// no need to support deselecting the other two.
+type SubmissionsFilterMode = 'all' | 'ignored' | 'errored';
+
+const SUBMISSIONS_FILTER_STORAGE_KEY = 'itl-submissions-filter';
+
 export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
   const result = useSubmissions(eventSlug);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showIgnored, setShowIgnored] = useState(true);
-  const [showErrored, setShowErrored] = useState(true);
-  const showIgnoredId = useId();
-  const showErroredId = useId();
+  const [filterMode, setFilterMode] = useLocalStorageState<SubmissionsFilterMode>(
+    SUBMISSIONS_FILTER_STORAGE_KEY,
+    'all',
+  );
+  const showAllId = useId();
+  const showOnlyIgnoredId = useId();
+  const showOnlyErroredId = useId();
 
   function toggleExpanded(fileId: string) {
     setExpanded((prev) => {
@@ -59,31 +70,32 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
     return <p className="text-muted-foreground text-sm">No submissions yet.</p>;
   }
 
-  const visibleSubmissions = result.submissions.filter(
-    (submission) =>
-      (showIgnored || !submission.isIgnored) && (showErrored || !submission.processingError),
-  );
+  const visibleSubmissions = result.submissions.filter((submission) => {
+    if (filterMode === 'ignored') return submission.isIgnored;
+    if (filterMode === 'errored') return Boolean(submission.processingError);
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-6">
+      <RadioGroup
+        className="flex w-auto flex-row items-center gap-6"
+        value={filterMode}
+        onValueChange={(value) => setFilterMode(value as SubmissionsFilterMode)}
+      >
         <div className="flex items-center gap-2">
-          <Checkbox
-            id={showIgnoredId}
-            checked={showIgnored}
-            onCheckedChange={(checked) => setShowIgnored(checked === true)}
-          />
-          <Label htmlFor={showIgnoredId}>Show ignored</Label>
+          <RadioGroupItem id={showAllId} value="all" />
+          <Label htmlFor={showAllId}>Show all</Label>
         </div>
         <div className="flex items-center gap-2">
-          <Checkbox
-            id={showErroredId}
-            checked={showErrored}
-            onCheckedChange={(checked) => setShowErrored(checked === true)}
-          />
-          <Label htmlFor={showErroredId}>Show errored</Label>
+          <RadioGroupItem id={showOnlyIgnoredId} value="ignored" />
+          <Label htmlFor={showOnlyIgnoredId}>Show only ignored</Label>
         </div>
-      </div>
+        <div className="flex items-center gap-2">
+          <RadioGroupItem id={showOnlyErroredId} value="errored" />
+          <Label htmlFor={showOnlyErroredId}>Show only errored</Label>
+        </div>
+      </RadioGroup>
       {visibleSubmissions.length === 0 ? (
         <p className="text-muted-foreground text-sm">No submissions match these filters.</p>
       ) : (
