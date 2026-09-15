@@ -45,7 +45,11 @@ export class CuratorsController {
     @Param('userId') userId: string,
     @Body() dto: SetCuratorAdminDto,
   ) {
-    if (userId === req.user.id && !dto.isAdmin) {
+    // The self-lockout guard only protects against losing access: a global admin's
+    // isEventAdmin/accessibleWhere checks bypass EventRole entirely (see EventsService), so
+    // demoting or removing themselves here can never lock them out - let them manage their own
+    // row like any other member's.
+    if (userId === req.user.id && !dto.isAdmin && !req.user.isGlobalAdmin) {
       throw new BadRequestException('You cannot remove your own admin access');
     }
     return this.curators.setAdmin(req.event.id, userId, dto.isAdmin);
@@ -53,7 +57,7 @@ export class CuratorsController {
 
   @Delete(':userId')
   remove(@Req() req: Request & { event: Event; user: User }, @Param('userId') userId: string) {
-    if (userId === req.user.id) {
+    if (userId === req.user.id && !req.user.isGlobalAdmin) {
       throw new BadRequestException('You cannot remove your own access');
     }
     return this.curators.removeCurator(req.event.id, userId);

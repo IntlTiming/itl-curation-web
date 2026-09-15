@@ -192,6 +192,11 @@ function MembersSection({
 }) {
   const auth = useAuth();
   const currentUserId = auth.status === 'authenticated' ? auth.user.id : null;
+  // A global admin's access never actually depends on their EventRole (see EventsService's
+  // isGlobalAdmin bypass), so the self-lockout protection below - which exists purely to stop a
+  // member from accidentally revoking their own access - doesn't apply to them; let them manage
+  // their own row like any other member's.
+  const currentUserIsGlobalAdmin = auth.status === 'authenticated' && auth.user.isGlobalAdmin;
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<Record<string, string>>({});
 
@@ -259,6 +264,7 @@ function MembersSection({
             <TableBody>
               {curators.curators.map((curator) => {
                 const isSelf = curator.userId === currentUserId;
+                const lockSelf = isSelf && !currentUserIsGlobalAdmin;
                 return (
                   <TableRow key={curator.userId}>
                     <TableCell>
@@ -276,7 +282,7 @@ function MembersSection({
                       </div>
                     </TableCell>
                     <TableCell>
-                      {isSelf ? (
+                      {lockSelf ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="inline-block">
@@ -299,7 +305,7 @@ function MembersSection({
                       {format(new Date(curator.grantedAt), 'PP')}
                     </TableCell>
                     <TableCell>
-                      {isSelf ? (
+                      {lockSelf ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="inline-block">
@@ -325,8 +331,9 @@ function MembersSection({
                             <AlertDialogHeader>
                               <AlertDialogTitle>Remove {displayNameOf(curator)}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                They'll lose access to this event. Their existing reviews and
-                                comments are kept.
+                                {isSelf
+                                  ? "You'll keep access as a global admin, but lose your explicit membership row. Your existing reviews and comments are kept."
+                                  : "They'll lose access to this event. Their existing reviews and comments are kept."}
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
