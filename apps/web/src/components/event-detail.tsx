@@ -1,8 +1,9 @@
-import { ClipboardCheck, Inbox, Upload, Users } from 'lucide-react';
+import { ClipboardCheck, Inbox, Settings, Upload, Users } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
 import { ReviewsPanel } from '@/components/reviews-panel';
+import { SettingsPanel } from '@/components/settings-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
 import { SubmittersPanel } from '@/components/submitters-panel';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,7 +40,8 @@ export function EventDetail() {
 
   const { event } = result;
   const requestedTab = searchParams.get('tab') ?? DEFAULT_TAB;
-  const tab = requestedTab === 'import' && !event.isEventAdmin ? DEFAULT_TAB : requestedTab;
+  const isAdminOnlyTab = requestedTab === 'import' || requestedTab === 'settings';
+  const tab = isAdminOnlyTab && !event.isEventAdmin ? DEFAULT_TAB : requestedTab;
 
   return (
     <Tabs
@@ -78,6 +80,12 @@ export function EventDetail() {
             Import
           </TabsTrigger>
         )}
+        {event.isEventAdmin && (
+          <TabsTrigger value="settings">
+            <Settings />
+            Settings
+          </TabsTrigger>
+        )}
       </TabsList>
       <TabsContent value="reviews">
         <ReviewsPanel eventSlug={event.slug} />
@@ -91,6 +99,11 @@ export function EventDetail() {
       {event.isEventAdmin && (
         <TabsContent value="import">
           <ImportPanel eventSlug={event.slug} />
+        </TabsContent>
+      )}
+      {event.isEventAdmin && (
+        <TabsContent value="settings">
+          <SettingsPanel eventSlug={event.slug} />
         </TabsContent>
       )}
     </Tabs>

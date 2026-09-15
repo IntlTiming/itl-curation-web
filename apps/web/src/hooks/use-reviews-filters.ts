@@ -98,6 +98,8 @@ export function useReviewsFilters(slug: string) {
   // visitor with no saved filters and no URL params) - react-router treats every
   // setSearchParams call as a real navigation regardless of content, and calling it
   // unconditionally on mount can race with the router's own initial render.
+  // The cleanup strips every filter key back out on unmount so they don't linger in the URL
+  // after switching away from the Reviews tab - they're meaningless (and confusing) elsewhere.
   useEffect(() => {
     setSearchParams(
       (params) => {
@@ -106,6 +108,17 @@ export function useReviewsFilters(slug: string) {
       },
       { replace: true },
     );
+    return () => {
+      setSearchParams(
+        (params) => {
+          if (!FILTER_PARAM_KEYS.some((key) => params.has(key))) return params;
+          const next = new URLSearchParams(params);
+          for (const key of FILTER_PARAM_KEYS) next.delete(key);
+          return next;
+        },
+        { replace: true },
+      );
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

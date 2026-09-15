@@ -63,7 +63,9 @@ export function useReviewsSort(slug: string) {
 
   // Mirrors whatever the initial state turned out to be into the URL once, so the current
   // sort order is linkable immediately - see useReviewsFilters' identical effect for why this
-  // is a mount-only, URL-only sync.
+  // is a mount-only, URL-only sync. The cleanup strips sortColumn/sortDirection back out on
+  // unmount so they don't linger in the URL after switching away from the Reviews tab - they're
+  // meaningless (and confusing) on any other tab.
   useEffect(() => {
     setSearchParams(
       (params) => {
@@ -72,6 +74,18 @@ export function useReviewsSort(slug: string) {
       },
       { replace: true },
     );
+    return () => {
+      setSearchParams(
+        (params) => {
+          if (!params.has('sortColumn') && !params.has('sortDirection')) return params;
+          const next = new URLSearchParams(params);
+          next.delete('sortColumn');
+          next.delete('sortDirection');
+          return next;
+        },
+        { replace: true },
+      );
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
