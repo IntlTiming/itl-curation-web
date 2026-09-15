@@ -8,6 +8,7 @@ import {
   REVIEWS_COLUMN_STORAGE_KEY,
   sanitizeColumnOrder,
   sanitizeColumnVisibility,
+  type ReviewsColumnVisibility,
 } from '@/components/reviews-columns';
 import { ReviewsColumnsDialog } from '@/components/reviews-columns-dialog';
 import { ReviewsFilterBar } from '@/components/reviews-filter-bar';
@@ -15,7 +16,7 @@ import { ReviewsTable } from '@/components/reviews-table';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useReviews } from '@/hooks/use-reviews';
 import { useReviewsFilters, type ReviewsFilters } from '@/hooks/use-reviews-filters';
-import { useReviewsSort } from '@/hooks/use-reviews-sort';
+import { DEFAULT_SORT, useReviewsSort } from '@/hooks/use-reviews-sort';
 import { useScrollRestoration } from '@/hooks/use-scroll-restoration';
 
 // "Showing x of y singles/doubles submissions" when any filter besides Playstyle narrows the
@@ -63,6 +64,16 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
     setColumnOrder(REVIEWS_COLUMN_ORDER);
   }
 
+  // Hiding the column currently being sorted by would otherwise leave the table sorted by a
+  // field with no visible header/arrow to explain or change it - fall back to the default sort
+  // (if its own column is still visible) or the table's plain server order otherwise.
+  function handleColumnVisibilityChange(next: ReviewsColumnVisibility) {
+    setColumnVisibility(next);
+    if (sort && !next[sort.column]) {
+      setSort(next[DEFAULT_SORT.column] ? DEFAULT_SORT : null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -76,7 +87,7 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           order={sanitizedColumnOrder}
           onOrderChange={setColumnOrder}
           visibility={sanitizedColumnVisibility}
-          onVisibilityChange={setColumnVisibility}
+          onVisibilityChange={handleColumnVisibilityChange}
           onReset={handleResetColumns}
         />
       </div>

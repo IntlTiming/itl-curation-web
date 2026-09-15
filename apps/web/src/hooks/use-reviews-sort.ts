@@ -6,6 +6,15 @@ function storageKey(slug: string): string {
   return `itl-reviews-sort:${slug}`;
 }
 
+// First-visit default (and what a cleared/never-set localStorage value falls back to) - most
+// recently active submissions surface first, rather than the table's unsorted multi-key
+// server order (playstyle -> meter -> difficulty -> title). Exported so reviews-panel.tsx can
+// fall back to it when the user hides the column currently being sorted by.
+export const DEFAULT_SORT = {
+  column: 'lastActivity',
+  direction: 'desc',
+} as const satisfies SortState;
+
 function isSortColumn(value: string): value is SortColumn {
   return SORTABLE_COLUMNS.has(value as SortColumn);
 }
@@ -49,7 +58,7 @@ export function useReviewsSort(slug: string) {
 
   const [sort, setSortState] = useState<SortState>(() => {
     if (searchParams.has('sortColumn')) return parseFromParams(searchParams);
-    return readFromLocalStorage(slug);
+    return readFromLocalStorage(slug) ?? DEFAULT_SORT;
   });
 
   // Mirrors whatever the initial state turned out to be into the URL once, so the current

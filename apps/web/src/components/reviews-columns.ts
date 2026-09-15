@@ -12,7 +12,9 @@ export type ReviewsColumnKey =
   | 'avgRating'
   | 'minRating'
   | 'maxRating'
-  | 'stdevRating';
+  | 'stdevRating'
+  | 'commentCount'
+  | 'lastActivity';
 
 export type ReviewsColumnVisibility = Record<ReviewsColumnKey, boolean>;
 
@@ -30,6 +32,8 @@ export const REVIEWS_COLUMN_ORDER: ReviewsColumnKey[] = [
   'minRating',
   'maxRating',
   'stdevRating',
+  'commentCount',
+  'lastActivity',
 ];
 
 // Reconciles a persisted column order against the current canonical key set: drops unknown/
@@ -69,6 +73,8 @@ export const REVIEWS_COLUMN_LABELS: Record<ReviewsColumnKey, string> = {
   minRating: 'Min. rating',
   maxRating: 'Max rating',
   stdevRating: 'Stdev rating',
+  commentCount: '# comments',
+  lastActivity: 'Last activity',
 };
 
 // Meter and Title are the table's forced-visible identity columns - a curator can't hide
@@ -87,6 +93,8 @@ export const DEFAULT_REVIEWS_COLUMN_VISIBILITY: ReviewsColumnVisibility = {
   minRating: false,
   maxRating: false,
   stdevRating: false,
+  commentCount: false,
+  lastActivity: true,
 };
 
 export const REVIEWS_COLUMN_STORAGE_KEY = 'itl-reviews-columns';

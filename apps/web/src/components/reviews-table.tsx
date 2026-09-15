@@ -1,4 +1,5 @@
 import { cn } from 'cn';
+import { format } from 'date-fns';
 import { Ban, ChevronDown, ChevronUp, Globe, SquareCheck, SquarePen } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -34,7 +35,9 @@ export type SortColumn =
   | 'avgRating'
   | 'minRating'
   | 'maxRating'
-  | 'stdevRating';
+  | 'stdevRating'
+  | 'commentCount'
+  | 'lastActivity';
 export type SortState = { column: SortColumn; direction: 'asc' | 'desc' } | null;
 
 export const SORTABLE_COLUMNS = new Set<SortColumn>([
@@ -48,6 +51,8 @@ export const SORTABLE_COLUMNS = new Set<SortColumn>([
   'minRating',
   'maxRating',
   'stdevRating',
+  'commentCount',
+  'lastActivity',
 ]);
 
 // These columns' content is a fixed-size icon button, a short badge, or a small number - never
@@ -63,16 +68,20 @@ const NARROW_COLUMNS = new Set<ReviewsColumnKey>([
   'minRating',
   'maxRating',
   'stdevRating',
+  'commentCount',
+  'lastActivity',
 ]);
 
 // The plain numeric columns - right-aligned like a spreadsheet's number columns, unlike the
-// icon/badge/text content in every other column here.
+// icon/badge/text content in every other column here. lastActivity is a formatted date, not a
+// number, so it stays left-aligned even though it's narrow.
 const RIGHT_ALIGNED_COLUMNS = new Set<ReviewsColumnKey>([
   'reviewCount',
   'avgRating',
   'minRating',
   'maxRating',
   'stdevRating',
+  'commentCount',
 ]);
 
 // Review.rating (and its avg/min/max/stdev derivatives) is already scaled to a plain decimal by
@@ -114,6 +123,13 @@ function compareByColumn(a: ReviewsRow, b: ReviewsRow, column: SortColumn): numb
       return (a.maxRating ?? -Infinity) - (b.maxRating ?? -Infinity);
     case 'stdevRating':
       return (a.stdevRating ?? -Infinity) - (b.stdevRating ?? -Infinity);
+    case 'commentCount':
+      return a.commentCount - b.commentCount;
+    case 'lastActivity':
+      return (
+        (a.lastActivity ? Date.parse(a.lastActivity) : -Infinity) -
+        (b.lastActivity ? Date.parse(b.lastActivity) : -Infinity)
+      );
   }
 }
 
@@ -277,6 +293,8 @@ export function ReviewsTable({
     minRating: (row) => formatRating(row.minRating),
     maxRating: (row) => formatRating(row.maxRating),
     stdevRating: (row) => formatRating(row.stdevRating),
+    commentCount: (row) => row.commentCount,
+    lastActivity: (row) => (row.lastActivity ? format(new Date(row.lastActivity), 'PP p') : '—'),
   };
 
   // Add/Edit has no meaningful header text (it's just the icon-button column) - every other

@@ -32,6 +32,10 @@ export type ReviewsRow = {
   // Whether the current user already has a review on this exact submission (by fileId) - lets
   // the Add/Edit icon distinguish the two states.
   hasOwnReview: boolean;
+  // Both submissionId-scoped, NOT chart-hash matched like every field above - see the
+  // Comment model's schema comment for why comments never cross-match submissions.
+  commentCount: number;
+  lastActivity: string | null;
 };
 
 export type ReviewsMeterBounds = { min: number; max: number } | null;
