@@ -31,7 +31,8 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
     filters.minMeter === null &&
     filters.maxMeter === null &&
     !filters.unreviewedOnly &&
-    !filters.publiclyReviewableOnly;
+    !filters.publiclyReviewableOnly &&
+    filters.techTags.length === 0;
   return isUnfiltered
     ? `Showing ${totalCount} ${playstyleLabel} submissions`
     : `Showing ${visibleCount} of ${totalCount} ${playstyleLabel} submissions`;
