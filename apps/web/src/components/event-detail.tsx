@@ -19,10 +19,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEvent, type EventDetail as EventDetailData } from '@/hooks/use-event';
 import { usePageBreadcrumb } from '@/hooks/use-breadcrumb';
+import { usePageTitle } from '@/hooks/use-page-title';
 import { FILTER_PARAM_KEYS } from '@/hooks/use-reviews-filters';
 import { SORT_PARAM_KEYS } from '@/hooks/use-reviews-sort';
 
 const DEFAULT_TAB = 'reviews';
+
+const TAB_LABELS: Record<string, string> = {
+  reviews: 'Reviews',
+  submissions: 'Submissions',
+  submitters: 'Submitters',
+  import: 'Import',
+  settings: 'Settings',
+};
 
 function accessRequestsUrl(slug: string): string {
   return `/api/events/${encodeURIComponent(slug)}/access-requests`;
@@ -105,6 +114,21 @@ export function EventDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
   usePageBreadcrumb(result.status === 'loaded' ? [{ label: result.event.name }] : []);
 
+  const requestedTab = searchParams.get('tab') ?? DEFAULT_TAB;
+  const isAdminOnlyTab = requestedTab === 'import' || requestedTab === 'settings';
+  const tab =
+    isAdminOnlyTab && !(result.status === 'loaded' && result.event.isEventAdmin)
+      ? DEFAULT_TAB
+      : requestedTab;
+
+  usePageTitle(
+    result.status !== 'loaded'
+      ? null
+      : !result.event.isMember
+        ? result.event.name
+        : `${TAB_LABELS[tab]} - ${result.event.name}`,
+  );
+
   if (result.status === 'loading') {
     return <Loading message="Loading event…" />;
   }
@@ -129,10 +153,6 @@ export function EventDetail() {
   if (!event.isMember) {
     return <RequestAccessCard event={event} onChanged={result.refetch} />;
   }
-
-  const requestedTab = searchParams.get('tab') ?? DEFAULT_TAB;
-  const isAdminOnlyTab = requestedTab === 'import' || requestedTab === 'settings';
-  const tab = isAdminOnlyTab && !event.isEventAdmin ? DEFAULT_TAB : requestedTab;
 
   return (
     <Tabs
