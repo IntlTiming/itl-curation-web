@@ -1,6 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import type { User } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import type { Event, User } from '@prisma/client';
+import { EventVisibility, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BASIC_CHECK_REASON_SEED_DATA } from './basic-check-reasons.seed-data.js';
 import type { CreateEventDto } from './dto/create-event.dto.js';
@@ -32,6 +32,61 @@ export class EventsService {
     return this.prisma.event.findFirst({
       where: { slug, ...this.accessibleWhere(user) },
     });
+  }
+
+  // Everything `user` can even see: accessible events (as above) plus any PUBLIC event they
+  // aren't a member of. Deliberately separate from accessibleWhere - visibility only affects
+  // discoverability (the events list, and a limited detail view offering a Request-access
+  // action), never read/write access to event content, which still requires a real EventRole.
+  async findVisible(user: User) {
+    const events = await this.prisma.event.findMany({
+      where: {
+        archivedAt: null,
+        ...(user.isGlobalAdmin
+          ? {}
+          : {
+              OR: [
+                { visibility: EventVisibility.PUBLIC },
+                { roles: { some: { userId: user.id } } },
+              ],
+            }),
+      },
+      include: { roles: { where: { userId: user.id }, select: { id: true } } },
+      orderBy: { date: 'desc' },
+    });
+    return events.map(({ roles, ...event }) => ({
+      ...event,
+      isMember: user.isGlobalAdmin || roles.length > 0,
+    }));
+  }
+
+  // Same idea as findVisible, for a single event by slug. Returns null when the event
+  // doesn't exist, is archived, or is private and user isn't a member - all indistinguishable
+  // 404s to the caller, same as findAccessibleBySlug today.
+  async findVisibleBySlug(
+    user: User,
+    slug: string,
+  ): Promise<{ event: Event; isMember: boolean } | null> {
+    const accessible = await this.findAccessibleBySlug(user, slug);
+    if (accessible) return { event: accessible, isMember: true };
+
+    const publicEvent = await this.prisma.event.findFirst({
+      where: { slug, archivedAt: null, visibility: EventVisibility.PUBLIC },
+    });
+    return publicEvent ? { event: publicEvent, isMember: false } : null;
+  }
+
+  setVisibility(eventId: string, visibility: EventVisibility) {
+    return this.prisma.event.update({ where: { id: eventId }, data: { visibility } });
+  }
+
+  // Lives here (rather than on AccessRequestsService) so EventsController's getBySlug can use
+  // it without EventsModule depending back on AccessRequestsModule.
+  async hasPendingAccessRequest(eventId: string, userId: string): Promise<boolean> {
+    const request = await this.prisma.eventAccessRequest.findUnique({
+      where: { eventId_userId: { eventId, userId } },
+    });
+    return request !== null;
   }
 
   async isEventAdmin(user: User, eventId: string): Promise<boolean> {

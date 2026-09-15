@@ -3,9 +3,11 @@ import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { AccessRequestsModule } from './access-requests/access-requests.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BasicCheckReasonsModule } from './basic-check-reasons/basic-check-reasons.module.js';
 import { CommentsModule } from './comments/comments.module.js';
+import { CuratorsModule } from './curators/curators.module.js';
 import { EventsModule } from './events/events.module.js';
 import { HealthController } from './health/health.controller.js';
 import { ImportModule } from './import/import.module.js';
@@ -35,6 +37,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     ReviewsModule,
     CommentsModule,
     BasicCheckReasonsModule,
+    CuratorsModule,
+    AccessRequestsModule,
   ],
   controllers: [HealthController],
 })

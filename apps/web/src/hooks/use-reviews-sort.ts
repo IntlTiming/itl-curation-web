@@ -19,6 +19,15 @@ function isSortColumn(value: string): value is SortColumn {
   return SORTABLE_COLUMNS.has(value as SortColumn);
 }
 
+// Exported so event-detail.tsx can strip these atomically, in the SAME setSearchParams call
+// that changes `tab`, when navigating away from Reviews. A separate effect-cleanup-on-unmount
+// approach was tried and reverted: it closes over a setSearchParams captured at mount (never
+// refreshed, since the effect has [] deps), so by the time ReviewsPanel actually unmounts -
+// simultaneously with the tab param changing - that stale closure overwrites the URL using a
+// pre-tab-switch snapshot and wipes out the tab change itself. Doing it in the same update as
+// the tab change avoids the race entirely.
+export const SORT_PARAM_KEYS = ['sortColumn', 'sortDirection'] as const;
+
 function parseFromParams(params: URLSearchParams): SortState {
   const column = params.get('sortColumn');
   if (column === null || !isSortColumn(column)) return null;
@@ -63,9 +72,8 @@ export function useReviewsSort(slug: string) {
 
   // Mirrors whatever the initial state turned out to be into the URL once, so the current
   // sort order is linkable immediately - see useReviewsFilters' identical effect for why this
-  // is a mount-only, URL-only sync. The cleanup strips sortColumn/sortDirection back out on
-  // unmount so they don't linger in the URL after switching away from the Reviews tab - they're
-  // meaningless (and confusing) on any other tab.
+  // is a mount-only, URL-only sync. (Cleanup on leaving Reviews lives in event-detail.tsx's tab
+  // switcher instead of here - see the SORT_PARAM_KEYS comment above for why.)
   useEffect(() => {
     setSearchParams(
       (params) => {
@@ -74,18 +82,6 @@ export function useReviewsSort(slug: string) {
       },
       { replace: true },
     );
-    return () => {
-      setSearchParams(
-        (params) => {
-          if (!params.has('sortColumn') && !params.has('sortDirection')) return params;
-          const next = new URLSearchParams(params);
-          next.delete('sortColumn');
-          next.delete('sortDirection');
-          return next;
-        },
-        { replace: true },
-      );
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

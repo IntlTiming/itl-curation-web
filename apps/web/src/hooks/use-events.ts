@@ -5,6 +5,8 @@ export type Event = {
   slug: string;
   name: string;
   date: string | null;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  isMember: boolean;
   createdAt: string;
   updatedAt: string;
 };

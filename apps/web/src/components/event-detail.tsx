@@ -1,4 +1,5 @@
-import { ClipboardCheck, Inbox, Settings, Upload, Users } from 'lucide-react';
+import { ClipboardCheck, Globe, Inbox, Settings, Upload, Users } from 'lucide-react';
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
@@ -6,12 +7,97 @@ import { ReviewsPanel } from '@/components/reviews-panel';
 import { SettingsPanel } from '@/components/settings-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
 import { SubmittersPanel } from '@/components/submitters-panel';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useEvent } from '@/hooks/use-event';
+import { useEvent, type EventDetail as EventDetailData } from '@/hooks/use-event';
 import { usePageBreadcrumb } from '@/hooks/use-breadcrumb';
+import { FILTER_PARAM_KEYS } from '@/hooks/use-reviews-filters';
+import { SORT_PARAM_KEYS } from '@/hooks/use-reviews-sort';
 
 const DEFAULT_TAB = 'reviews';
+
+function accessRequestsUrl(slug: string): string {
+  return `/api/events/${encodeURIComponent(slug)}/access-requests`;
+}
+
+// Shown instead of the Tabs UI for a logged-in, non-admin, non-member viewer of a PUBLIC
+// event - global admins always come back with isMember: true (see EventsService.findVisible),
+// so reaching this branch means the event is genuinely public and this user hasn't been added.
+function RequestAccessCard({
+  event,
+  onChanged,
+}: {
+  event: EventDetailData;
+  onChanged: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(method: 'POST' | 'DELETE', failureMessage: string) {
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch(accessRequestsUrl(event.slug), { method });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? failureMessage);
+      }
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : failureMessage);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>{event.name}</CardTitle>
+        <CardDescription className="flex items-center gap-1.5">
+          <Globe className="size-3.5" />
+          Public event
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-muted-foreground text-sm">
+          {event.hasPendingRequest
+            ? "You've requested access to this event. An admin needs to approve it before you can see anything else."
+            : "You don't have access to this event yet. You can request it below."}
+        </p>
+        {error && <p className="text-destructive mt-2 text-sm">{error}</p>}
+      </CardContent>
+      <CardFooter>
+        {event.hasPendingRequest ? (
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={pending}
+            onClick={() => submit('DELETE', 'Failed to cancel request')}
+          >
+            {pending ? 'Cancelling…' : 'Cancel request'}
+          </Button>
+        ) : (
+          <Button
+            className="w-full"
+            disabled={pending}
+            onClick={() => submit('POST', 'Failed to request access')}
+          >
+            {pending ? 'Requesting…' : 'Request access'}
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
+  );
+}
 
 export function EventDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -39,6 +125,11 @@ export function EventDetail() {
   }
 
   const { event } = result;
+
+  if (!event.isMember) {
+    return <RequestAccessCard event={event} onChanged={result.refetch} />;
+  }
+
   const requestedTab = searchParams.get('tab') ?? DEFAULT_TAB;
   const isAdminOnlyTab = requestedTab === 'import' || requestedTab === 'settings';
   const tab = isAdminOnlyTab && !event.isEventAdmin ? DEFAULT_TAB : requestedTab;
@@ -54,6 +145,13 @@ export function EventDetail() {
               params.delete('tab');
             } else {
               params.set('tab', value);
+            }
+            // Reviews' own sort/filter params are meaningless on any other tab. Stripped here,
+            // atomically with the tab change itself, rather than via an effect cleanup in
+            // ReviewsPanel's hooks - see SORT_PARAM_KEYS's comment in use-reviews-sort.ts for
+            // why that approach races this navigation and was reverted.
+            if (value !== 'reviews') {
+              for (const key of [...SORT_PARAM_KEYS, ...FILTER_PARAM_KEYS]) params.delete(key);
             }
             return params;
           },
@@ -103,7 +201,7 @@ export function EventDetail() {
       )}
       {event.isEventAdmin && (
         <TabsContent value="settings">
-          <SettingsPanel eventSlug={event.slug} />
+          <SettingsPanel event={event} onEventChanged={result.refetch} />
         </TabsContent>
       )}
     </Tabs>

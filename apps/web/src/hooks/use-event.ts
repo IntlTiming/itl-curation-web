@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Event } from '@/hooks/use-events';
 
-export type EventDetail = Event & { isEventAdmin: boolean };
+export type EventDetail = {
+  id: string;
+  slug: string;
+  name: string;
+  date: string | null;
+  visibility: 'PUBLIC' | 'PRIVATE';
+  isEventAdmin: boolean;
+  isMember: boolean;
+  // Only meaningful when isMember is false.
+  hasPendingRequest?: boolean;
+};
 
 export type EventState =
   | { status: 'loading' }
