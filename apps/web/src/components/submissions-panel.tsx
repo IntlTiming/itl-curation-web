@@ -103,6 +103,7 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
           <TableHeader>
             <TableRow>
               <TableHead />
+              <TableHead className="w-12 text-right">#</TableHead>
               <TableHead>Submitted</TableHead>
               <TableHead>Submitter</TableHead>
               <TableHead>Stepartist</TableHead>
@@ -112,7 +113,7 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleSubmissions.map((submission) => {
+            {visibleSubmissions.map((submission, index) => {
               const status = submission.processingError ?? 'Success';
               const rowTone: RowTone | null =
                 status !== 'Success' ? 'error' : submission.isIgnored ? 'ignored' : null;
@@ -130,6 +131,7 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
                         )}
                       />
                     </TableCell>
+                    <TableCell className="text-right">{index + 1}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       {formatTimestamp(submission.submittedAt)}
                     </TableCell>
@@ -152,7 +154,7 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
                   {expanded.has(submission.fileId) && (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className={cn(
                           'whitespace-normal',
                           rowTone ? ROW_TONE_EXPANDED_CLASS[rowTone] : 'bg-muted/30',
