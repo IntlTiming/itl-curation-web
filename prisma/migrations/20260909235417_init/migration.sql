@@ -87,6 +87,8 @@ CREATE TABLE "submissions" (
     "isInternal" BOOLEAN NOT NULL DEFAULT false,
     "submittedAt" TIMESTAMP(3) NOT NULL,
     "isIgnored" BOOLEAN NOT NULL DEFAULT false,
+    "lastReviewAt" TIMESTAMP(3),
+    "lastCommentAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "singleTechTagId" TEXT,
@@ -237,6 +239,29 @@ CREATE TABLE "review_revision_basic_checks" (
 );
 
 -- CreateTable
+CREATE TABLE "comments" (
+    "id" TEXT NOT NULL,
+    "submissionId" TEXT NOT NULL,
+    "authorId" TEXT NOT NULL,
+    "chartHash" TEXT NOT NULL,
+    "body" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "comment_reactions" (
+    "commentId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "emoji" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "comment_reactions_pkey" PRIMARY KEY ("commentId","userId","emoji")
+);
+
+-- CreateTable
 CREATE TABLE "disqualification_reasons" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
@@ -341,6 +366,9 @@ CREATE INDEX "review_revisions_reviewId_idx" ON "review_revisions"("reviewId");
 CREATE INDEX "review_revisions_chartHash_idx" ON "review_revisions"("chartHash");
 
 -- CreateIndex
+CREATE INDEX "comments_submissionId_idx" ON "comments"("submissionId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "disqualification_reasons_eventId_code_key" ON "disqualification_reasons"("eventId", "code");
 
 -- CreateIndex
@@ -396,6 +424,18 @@ ALTER TABLE "review_revision_basic_checks" ADD CONSTRAINT "review_revision_basic
 
 -- AddForeignKey
 ALTER TABLE "review_revision_basic_checks" ADD CONSTRAINT "review_revision_basic_checks_basicCheckReasonId_fkey" FOREIGN KEY ("basicCheckReasonId") REFERENCES "basic_check_reasons"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comments" ADD CONSTRAINT "comments_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "submissions"("fileId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comments" ADD CONSTRAINT "comments_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comment_reactions" ADD CONSTRAINT "comment_reactions_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "comments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "comment_reactions" ADD CONSTRAINT "comment_reactions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "disqualification_reasons" ADD CONSTRAINT "disqualification_reasons_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "events"("id") ON DELETE SET NULL ON UPDATE CASCADE;

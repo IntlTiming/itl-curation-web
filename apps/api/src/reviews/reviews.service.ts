@@ -77,6 +77,8 @@ type RawReviewRow = {
   maxRating: number | null;
   stdevRating: number | null;
   hasOwnReview: boolean;
+  commentCount: bigint;
+  lastActivity: Date | null;
 };
 
 export type ReviewsRow = {
@@ -112,6 +114,11 @@ export type ReviewsRow = {
   // chart hash - matches the Review@@unique([submissionId, reviewerId]) scope the edit modal's
   // upsert endpoint operates on), so the Add/Edit icon can distinguish the two states.
   hasOwnReview: boolean;
+  // Both of the following are submissionId-scoped, NOT chart-hash matched like every field
+  // above them - deliberately different from reviewCount/avgRating/etc. See Comment's schema
+  // comment and the file header's chart-identity note for why comments never cross-match.
+  commentCount: number;
+  lastActivity: Date | null;
 };
 
 export type ReviewsResponse = {
@@ -153,6 +160,8 @@ export function mapRawReviewRow(row: RawReviewRow): ReviewsRow {
     maxRating: row.maxRating == null ? null : row.maxRating / 100,
     stdevRating: row.stdevRating == null ? null : row.stdevRating / 100,
     hasOwnReview: row.hasOwnReview,
+    commentCount: Number(row.commentCount),
+    lastActivity: row.lastActivity,
   };
 }
 
@@ -383,7 +392,10 @@ export class ReviewsService {
           EXISTS (
             SELECT 1 FROM reviews r2
             WHERE r2."submissionId" = s."fileId" AND r2."reviewerId" = ${userId}
-          )                                AS "hasOwnReview"
+          )                                AS "hasOwnReview",
+          (SELECT COUNT(*) FROM comments cm WHERE cm."submissionId" = s."fileId")
+                                           AS "commentCount",
+          GREATEST(s."lastReviewAt", s."lastCommentAt") AS "lastActivity"
         FROM submissions s
         JOIN charts c ON c."submissionId" = s."fileId"
         JOIN LATERAL (${buildReviewStatsFragment(Prisma.sql`c.hash`)}) review_stats ON true
@@ -433,6 +445,20 @@ export class ReviewsService {
 
     const upserted = await this.upsertReviewTransaction(fileId, reviewerId, submission.chart, dto);
     return mapUpsertedReview(upserted);
+  }
+
+  // Recomputed via MAX rather than stamped with now() - correct across multiple reviewers,
+  // no special-casing needed for the no-op-resave branch below (see CommentsService's
+  // recomputeLastCommentAt for the same reasoning on the Comments side).
+  private async recomputeLastReviewAt(tx: Prisma.TransactionClient, fileId: string) {
+    const agg = await tx.review.aggregate({
+      where: { submissionId: fileId },
+      _max: { updatedAt: true },
+    });
+    await tx.submission.update({
+      where: { fileId },
+      data: { lastReviewAt: agg._max.updatedAt },
+    });
   }
 
   private upsertReviewTransaction(
@@ -488,10 +514,12 @@ export class ReviewsService {
         };
 
         if (!reviewFieldsChanged(existingFields, nextFields)) {
-          return tx.review.findUniqueOrThrow({
+          const unchanged = await tx.review.findUniqueOrThrow({
             where: { id: existing.id },
             include: reviewInclude,
           });
+          await this.recomputeLastReviewAt(tx, fileId);
+          return unchanged;
         }
 
         const revision = await tx.reviewRevision.create({
@@ -548,7 +576,12 @@ export class ReviewsService {
           });
         }
 
-        return tx.review.findUniqueOrThrow({ where: { id: existing.id }, include: reviewInclude });
+        const updated = await tx.review.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: reviewInclude,
+        });
+        await this.recomputeLastReviewAt(tx, fileId);
+        return updated;
       }
 
       const created = await tx.review.create({
@@ -572,7 +605,12 @@ export class ReviewsService {
         });
       }
 
-      return tx.review.findUniqueOrThrow({ where: { id: created.id }, include: reviewInclude });
+      const result = await tx.review.findUniqueOrThrow({
+        where: { id: created.id },
+        include: reviewInclude,
+      });
+      await this.recomputeLastReviewAt(tx, fileId);
+      return result;
     });
   }
 }

@@ -37,6 +37,8 @@ model User {
   eventRoles        EventRole[]
   reviews           Review[]
   reviewRevisions   ReviewRevision[]
+  comments          Comment[]
+  commentReactions  CommentReaction[]
   disqualifications Disqualification[]
 
   @@map("users")
@@ -138,6 +140,12 @@ model Submission {
   isInternal            Boolean                @default(false)
   submittedAt           DateTime // pipeline's "timestamp_utc" - when the submission form was submitted, not this row's own createdAt/updatedAt
   isIgnored             Boolean                @default(false) // mirrors the pipeline's "is_ignored" (e.g. superseded by a later resubmission of the same chart, among other reasons) - mapped straight from submissions.json like any other field while a fileId is present. If a fileId disappears from the file entirely, Import treats that the same as "is_ignored: true, chart: null" rather than deleting the row - the file is never allowed to delete rows outright, only to ignore them.
+  lastReviewAt          DateTime? // MAX(review.updatedAt) across this submission's own reviews -
+  // NOT chart-hash matched, unlike the Reviews tab's reviewCount/avgRating. Recomputed after
+  // every review upsert. Not exposed in any API response on its own - only combined into the
+  // Reviews tab's "last activity" column alongside lastCommentAt.
+  lastCommentAt         DateTime? // Same idea, MAX(comment.updatedAt) across this submission's
+  // comments. Recomputed after every comment create/update/delete.
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -147,6 +155,7 @@ model Submission {
   singleTechTagId   String?
   singleTechTag     TechTag?            @relation("SubmissionSingleTechFocus", fields: [singleTechTagId], references: [id])
   reviews           Review[]
+  comments          Comment[]
   disqualifications Disqualification[]
 
   @@index([eventId])
@@ -408,6 +417,52 @@ model ReviewRevisionBasicCheck {
 
   @@id([reviewRevisionId, basicCheckReasonId])
   @@map("review_revision_basic_checks")
+}
+
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+
+// A flat, unthreaded discussion feed anchored to the submission itself, deliberately NOT
+// cross-matched by chart hash the way Review is (see file header) - a comment about a
+// submission stays about that submission even if another submission later shares its
+// chart's hash. Unlike Review, a user can post any number of comments (no
+// @@unique([submissionId, authorId])), and only the author can edit/delete their own.
+model Comment {
+  id           String   @id @default(cuid())
+  submissionId String
+  authorId     String
+  chartHash    String // informational snapshot only, taken at save time - NOT queried/matched
+  // across submissions (unlike Review.chartHash), just a "has the chart changed since this was
+  // written" staleness indicator. No full chart-identity snapshot the way Review carries one.
+  body         String // markdown text, same convention/editor as Review.notes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  submission Submission        @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  author     User              @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  reactions  CommentReaction[]
+
+  @@index([submissionId])
+  // Deliberately no @@index([chartHash]) - never queried by it, unlike Review.
+  @@map("comments")
+}
+
+// One row per (comment, user, emoji) - a user can react to the same comment with several
+// different emoji, but only once each; re-clicking toggles the reaction off. Cascade on both
+// FKs (unlike Comment.authorId's Restrict): losing a stray reaction on user/comment deletion
+// is inconsequential, unlike losing comment text.
+model CommentReaction {
+  commentId String
+  userId    String
+  emoji     String // a single emoji grapheme, validated server-side (see IsSingleEmoji)
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId, emoji])
+  @@map("comment_reactions")
 }
 
 // ---------------------------------------------------------------------------

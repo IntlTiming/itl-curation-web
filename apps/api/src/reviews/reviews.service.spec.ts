@@ -136,6 +136,8 @@ describe('mapRawReviewRow', () => {
       maxRating: 200,
       stdevRating: 25.0,
       hasOwnReview: true,
+      commentCount: 2n,
+      lastActivity: new Date('2026-02-01T00:00:00Z'),
     });
 
     expect(row).toEqual({
@@ -165,9 +167,12 @@ describe('mapRawReviewRow', () => {
       maxRating: 2,
       stdevRating: 0.25,
       hasOwnReview: true,
+      commentCount: 2,
+      lastActivity: new Date('2026-02-01T00:00:00Z'),
     });
     expect(typeof row.reviewCount).toBe('number');
     expect(typeof row.avgRating).toBe('number');
+    expect(typeof row.commentCount).toBe('number');
   });
 
   it('leaves avg/min/max/stdev rating null when no active review carries a rating', () => {
@@ -196,6 +201,8 @@ describe('mapRawReviewRow', () => {
       maxRating: null,
       stdevRating: null,
       hasOwnReview: false,
+      commentCount: 0n,
+      lastActivity: null,
     });
 
     expect(row.consentToPublicReview).toBeNull();
@@ -204,6 +211,8 @@ describe('mapRawReviewRow', () => {
     expect(row.minRating).toBeNull();
     expect(row.maxRating).toBeNull();
     expect(row.stdevRating).toBeNull();
+    expect(row.commentCount).toBe(0);
+    expect(row.lastActivity).toBeNull();
   });
 });
 
