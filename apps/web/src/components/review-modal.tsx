@@ -242,9 +242,32 @@ export function ReviewModal({
 
   const isDirty = form !== null && initialForm !== null && !formsEqual(form, initialForm);
 
+  const disqualifiedReasons =
+    reasonsResult.status === 'loaded'
+      ? reasonsResult.reasons.filter((r) => r.level === 'DISQUALIFIED')
+      : [];
+  const warningReasons =
+    reasonsResult.status === 'loaded'
+      ? reasonsResult.reasons.filter((r) => r.level === 'WARNING')
+      : [];
+
+  // A rating is only optional when the review is flagging a disqualification - a warning
+  // (or no basic check at all) still needs one. "A note somewhere" is satisfied by either the
+  // review's own notes or any checked basic check's note - a reviewer explaining themselves
+  // via a check-specific note shouldn't also be forced to restate it in the general notes box.
+  const disqualifiedReasonIds = new Set(disqualifiedReasons.map((r) => r.id));
+  const hasCheckedDisqualification = form
+    ? Object.entries(form.basicChecks).some(
+        ([reasonId, value]) => value.checked && disqualifiedReasonIds.has(reasonId),
+      )
+    : false;
+  const hasNoteSomewhere =
+    !!form?.notes.trim() ||
+    (form ? Object.values(form.basicChecks).some((v) => v.checked && v.note.trim()) : false);
+
   const missingFields: string[] = [];
-  if (form?.rating == null) missingFields.push('a rating');
-  if (!form?.notes.trim()) missingFields.push('notes');
+  if (!hasCheckedDisqualification && form?.rating == null) missingFields.push('a rating');
+  if (!hasNoteSomewhere) missingFields.push('a note (on the review or a basic check)');
   const validationMessage = missingFields.length
     ? `Add ${missingFields.join(' and ')} to submit`
     : null;
@@ -306,15 +329,6 @@ export function ReviewModal({
       setSubmitting(false);
     }
   }
-
-  const disqualifiedReasons =
-    reasonsResult.status === 'loaded'
-      ? reasonsResult.reasons.filter((r) => r.level === 'DISQUALIFIED')
-      : [];
-  const warningReasons =
-    reasonsResult.status === 'loaded'
-      ? reasonsResult.reasons.filter((r) => r.level === 'WARNING')
-      : [];
 
   return (
     <>
