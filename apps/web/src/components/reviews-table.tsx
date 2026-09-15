@@ -9,6 +9,7 @@ import {
   type ReviewsColumnKey,
   type ReviewsColumnVisibility,
 } from '@/components/reviews-columns';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -96,6 +97,21 @@ function columnClassName(key: ReviewsColumnKey): string | undefined {
 
 function titleOf(chart: ReviewsChart): string {
   return chart.titleRomaji || chart.title;
+}
+
+// Same amber/red tint scale as submission-row.tsx's ROW_TONE_CLASS (ignored/error) - reused
+// here for a different pair of row-level states, so kept as its own small constant rather than
+// importing that submissions-domain one under a misleading key name. Disqualified wins over
+// warning when a chart has both (see rowToneClassName below).
+const REVIEWS_ROW_TONE_CLASS = {
+  warning: 'bg-amber-100 dark:bg-amber-500/25',
+  disqualified: 'bg-red-100 dark:bg-red-500/25',
+} as const;
+
+function rowToneClassName(row: ReviewsRow): string | undefined {
+  if (row.hasDisqualification) return REVIEWS_ROW_TONE_CLASS.disqualified;
+  if (row.hasWarning) return REVIEWS_ROW_TONE_CLASS.warning;
+  return undefined;
 }
 
 // Meter's own column-sort uses only chart.meter (per spec) - a narrower, independent
@@ -191,7 +207,7 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
   const title = titleOf(row.chart);
   const subtitle = row.chart.subtitleRomaji || row.chart.subtitle;
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-1">
       <span className="inline-flex items-center gap-1.5">
         <Link
           to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(row.fileId)}`}
@@ -206,6 +222,24 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
         />
       </span>
       {subtitle && <span className="text-muted-foreground text-xs">{subtitle}</span>}
+      {row.basicChecks.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {row.basicChecks.map((check) =>
+            check.level === 'DISQUALIFIED' ? (
+              <Badge key={check.id} variant="destructive">
+                {check.label}
+              </Badge>
+            ) : (
+              <Badge
+                key={check.id}
+                className="border-transparent bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400"
+              >
+                {check.label}
+              </Badge>
+            ),
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -325,7 +359,7 @@ export function ReviewsTable({
       </TableHeader>
       <TableBody>
         {sortedRows.map((row) => (
-          <TableRow key={row.fileId}>
+          <TableRow key={row.fileId} className={rowToneClassName(row)}>
             {visibleColumns.map((key) => (
               <TableCell key={key} className={columnClassName(key)}>
                 {cellRenderers[key](row)}

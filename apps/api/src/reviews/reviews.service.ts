@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type {
+  BasicCheckLevel,
   Chart,
   CmodPreference,
   ConsentToPublicReview,
@@ -81,6 +82,15 @@ type RawReviewRow = {
   lastActivity: Date | null;
 };
 
+// A union member of ReviewsRow.basicChecks - deduped by BasicCheckReason across every active
+// review on the chart, so a reason two different reviewers both flagged appears once.
+export type ReviewsBasicCheck = {
+  id: string;
+  code: string;
+  label: string;
+  level: BasicCheckLevel;
+};
+
 export type ReviewsRow = {
   fileId: string;
   submitter: string;
@@ -119,6 +129,13 @@ export type ReviewsRow = {
   // comment and the file header's chart-identity note for why comments never cross-match.
   commentCount: number;
   lastActivity: Date | null;
+  // Union of every basic-check flag raised across all of this chart's active reviews, and the
+  // two booleans summarizing it for the Reviews table's row tint - DISQUALIFIED takes visual
+  // precedence over WARNING when a chart has both. Chart-hash scoped, like reviewCount/
+  // avgRating above (not submissionId-scoped like commentCount/lastActivity).
+  basicChecks: ReviewsBasicCheck[];
+  hasWarning: boolean;
+  hasDisqualification: boolean;
 };
 
 export type ReviewsResponse = {
@@ -130,7 +147,7 @@ export type ReviewsResponse = {
   totalCount: number;
 };
 
-export function mapRawReviewRow(row: RawReviewRow): ReviewsRow {
+export function mapRawReviewRow(row: RawReviewRow, basicChecks: ReviewsBasicCheck[]): ReviewsRow {
   return {
     fileId: row.fileId,
     submitter: row.submitter,
@@ -162,7 +179,20 @@ export function mapRawReviewRow(row: RawReviewRow): ReviewsRow {
     hasOwnReview: row.hasOwnReview,
     commentCount: Number(row.commentCount),
     lastActivity: row.lastActivity,
+    basicChecks,
+    hasWarning: basicChecks.some((check) => check.level === 'WARNING'),
+    hasDisqualification: basicChecks.some((check) => check.level === 'DISQUALIFIED'),
   };
+}
+
+// DISQUALIFIED-level checks sort before WARNING (the more severe state first), then
+// alphabetically by label within a level - a stable, predictable order for the Reviews
+// table's under-title check list.
+function sortReviewsBasicChecks(checks: ReviewsBasicCheck[]): ReviewsBasicCheck[] {
+  return [...checks].sort((a, b) => {
+    if (a.level !== b.level) return a.level === 'DISQUALIFIED' ? -1 : 1;
+    return a.label.localeCompare(b.label);
+  });
 }
 
 // Shared by the Reviews tab's per-chart aggregate stats and the submission-detail page's
@@ -404,6 +434,35 @@ export class ReviewsService {
       `,
     );
 
+    // Fetched separately from the raw-SQL rows above (via the ordinary Prisma query builder,
+    // same as submission-detail's getForEvent) rather than folded into the same query as a
+    // json_agg LATERAL - a chart can carry an unbounded set of distinct check reasons, which
+    // doesn't fit the fixed-column raw-SQL row shape as cleanly as one extra include-style
+    // fetch keyed by chartHash.
+    const chartHashes = [...new Set(rawRows.map((row) => row.hash))];
+    const basicCheckRows = chartHashes.length
+      ? await this.prisma.reviewBasicCheck.findMany({
+          where: { review: { chartHash: { in: chartHashes } } },
+          select: {
+            review: { select: { chartHash: true } },
+            basicCheckReason: { select: { id: true, code: true, label: true, level: true } },
+          },
+        })
+      : [];
+
+    // Deduped by BasicCheckReason id within a chartHash, since two different reviewers can
+    // raise the exact same reason - the table shows the union of distinct reasons, not one
+    // badge per reviewer.
+    const basicChecksByHash = new Map<string, Map<string, ReviewsBasicCheck>>();
+    for (const { review, basicCheckReason } of basicCheckRows) {
+      let checks = basicChecksByHash.get(review.chartHash);
+      if (!checks) {
+        checks = new Map();
+        basicChecksByHash.set(review.chartHash, checks);
+      }
+      checks.set(basicCheckReason.id, basicCheckReason);
+    }
+
     const minMeter = bounds[0]?.minMeter;
     const maxMeter = bounds[0]?.maxMeter;
 
@@ -422,7 +481,12 @@ export class ReviewsService {
     );
 
     return {
-      rows: rawRows.map(mapRawReviewRow),
+      rows: rawRows.map((row) =>
+        mapRawReviewRow(
+          row,
+          sortReviewsBasicChecks([...(basicChecksByHash.get(row.hash)?.values() ?? [])]),
+        ),
+      ),
       meterBounds: minMeter != null && maxMeter != null ? { min: minMeter, max: maxMeter } : null,
       totalCount: Number(totalCountRows[0]?.count ?? 0),
     };

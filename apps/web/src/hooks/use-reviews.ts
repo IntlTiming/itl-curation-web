@@ -15,6 +15,15 @@ export type ReviewsChart = {
   hasSignificantTimingChanges: boolean;
 };
 
+// A union member of ReviewsRow.basicChecks - deduped by BasicCheckReason across every active
+// review on the chart, so a reason two different reviewers both flagged appears once.
+export type ReviewsBasicCheck = {
+  id: string;
+  code: string;
+  label: string;
+  level: 'WARNING' | 'DISQUALIFIED';
+};
+
 export type ReviewsRow = {
   fileId: string;
   submitter: string;
@@ -36,6 +45,12 @@ export type ReviewsRow = {
   // Comment model's schema comment for why comments never cross-match submissions.
   commentCount: number;
   lastActivity: string | null;
+  // Union of every basic-check flag raised across all of this chart's active reviews, plus the
+  // two booleans summarizing it for the Reviews table's row tint - DISQUALIFIED takes visual
+  // precedence over WARNING when a chart has both.
+  basicChecks: ReviewsBasicCheck[];
+  hasWarning: boolean;
+  hasDisqualification: boolean;
 };
 
 export type ReviewsMeterBounds = { min: number; max: number } | null;
