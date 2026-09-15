@@ -19,7 +19,11 @@ const DEFAULT_FILTERS: ReviewsFilters = {
   publiclyReviewableOnly: false,
 };
 
-const FILTER_PARAM_KEYS = [
+// Exported so event-detail.tsx can strip these atomically, in the SAME setSearchParams call
+// that changes `tab`, when navigating away from Reviews - see use-reviews-sort.ts's
+// SORT_PARAM_KEYS comment for why an effect-cleanup-on-unmount approach here was reverted
+// (it races the tab-switch navigation via a stale setSearchParams closure).
+export const FILTER_PARAM_KEYS = [
   'search',
   'playstyle',
   'minMeter',
@@ -98,6 +102,8 @@ export function useReviewsFilters(slug: string) {
   // visitor with no saved filters and no URL params) - react-router treats every
   // setSearchParams call as a real navigation regardless of content, and calling it
   // unconditionally on mount can race with the router's own initial render.
+  // (Cleanup on leaving Reviews lives in event-detail.tsx's tab switcher instead of here - see
+  // the FILTER_PARAM_KEYS comment above for why.)
   useEffect(() => {
     setSearchParams(
       (params) => {

@@ -35,6 +35,7 @@ model User {
   lastLoginAt       DateTime?
 
   eventRoles        EventRole[]
+  accessRequests    EventAccessRequest[]
   reviews           Review[]
   reviewRevisions   ReviewRevision[]
   comments          Comment[]
@@ -44,18 +45,28 @@ model User {
   @@map("users")
 }
 
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+}
+
 model Event {
-  id         String    @id @default(cuid())
-  slug       String    @unique // "itl-online-2027"
+  id         String          @id @default(cuid())
+  slug       String          @unique // "itl-online-2027"
   name       String
   date       DateTime? // mutable, user-editable; ordering only - carries no behaviour
+  visibility EventVisibility @default(PRIVATE) // PUBLIC only affects discoverability (shows in
+  // the events list + a limited detail view to non-members with a Request-access action) -
+  // it does NOT grant read/write access to event content. That still requires an EventRole,
+  // exactly as today - see EventsService.accessibleWhere.
   archivedAt DateTime? // soft delete - null = active. Dependent tables (Submission, Review, ...)
   // have no soft-delete column of their own; their archived status is inferred by
   // walking up to this field, since nothing lets a row survive independently of its event.
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   roles                   EventRole[]
+  accessRequests          EventAccessRequest[]
   submissions             Submission[]
   basicCheckReasons       BasicCheckReason[]
   disqualificationReasons DisqualificationReason[]
@@ -86,6 +97,23 @@ model EventRole {
   @@unique([eventId, userId, role])
   @@index([userId])
   @@map("event_roles")
+}
+
+// A non-member's request for access to a PUBLIC event they can see but aren't added to.
+// Approving one creates the baseline REVIEWER EventRole and deletes this row; denying (or the
+// requester revoking it themselves) just deletes this row, so they're free to request again.
+model EventAccessRequest {
+  id          String   @id @default(cuid())
+  eventId     String
+  userId      String
+  requestedAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@map("event_access_requests")
 }
 
 // ---------------------------------------------------------------------------
