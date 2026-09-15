@@ -9,11 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { AuthUser } from '@/hooks/use-auth';
-
-function discordAvatarUrl(user: AuthUser) {
-  if (!user.discordAvatarHash) return undefined;
-  return `https://cdn.discordapp.com/avatars/${user.discordId}/${user.discordAvatarHash}.png`;
-}
+import { discordAvatarUrl } from '@/lib/discord-avatar';
 
 export function UserMenu({ user }: { user: AuthUser }) {
   const name = user.displayName ?? user.discordUsername;
