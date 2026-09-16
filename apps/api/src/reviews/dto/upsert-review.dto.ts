@@ -12,8 +12,10 @@ import {
 } from 'class-validator';
 
 // Rating is stored on Review as hundredths (e.g. 150 = 1.50) - this DTO takes the plain decimal
-// value the dropdown shows and ReviewsService scales it on the way in.
-const RATING_OPTIONS = [0, 1, 1.5, 2, 2.5, 3];
+// value the dropdown shows and ReviewsService scales it on the way in. Exported so
+// UsersService's per-user rating breakdown enumerates the exact same canonical set, rather than
+// risking drift from a second hand-copied list.
+export const RATING_OPTIONS = [0, 1, 1.5, 2, 2.5, 3];
 
 export class ReviewBasicCheckDto {
   @IsString()

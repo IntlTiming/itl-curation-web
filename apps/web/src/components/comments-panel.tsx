@@ -69,6 +69,7 @@ export function CommentsPanel({ slug, fileId }: { slug: string; fileId: string }
                 <CommentCard
                   key={comment.id}
                   comment={comment}
+                  eventSlug={slug}
                   currentUserId={currentUserId}
                   onEdit={result.updateComment}
                   onDelete={result.deleteComment}

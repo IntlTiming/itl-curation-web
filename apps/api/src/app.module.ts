@@ -11,10 +11,12 @@ import { CuratorsModule } from './curators/curators.module.js';
 import { EventsModule } from './events/events.module.js';
 import { HealthController } from './health/health.controller.js';
 import { ImportModule } from './import/import.module.js';
+import { OverviewModule } from './overview/overview.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 import { SubmittersModule } from './submitters/submitters.module.js';
+import { UsersModule } from './users/users.module.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +37,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     SubmissionsModule,
     SubmittersModule,
     ReviewsModule,
+    UsersModule,
+    OverviewModule,
     CommentsModule,
     BasicCheckReasonsModule,
     CuratorsModule,

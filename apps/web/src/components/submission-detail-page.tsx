@@ -120,16 +120,21 @@ function ReviewCard({ review, eventSlug }: { review: SubmissionDetailReview; eve
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Avatar className="size-6">
-              <AvatarImage
-                src={discordAvatarUrl(review.reviewer)}
-                alt={review.reviewer.displayName}
-              />
-              <AvatarFallback className="text-[10px]">
-                {review.reviewer.displayName.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-medium">{review.reviewer.displayName}</span>
+            <Link
+              to={`/events/${encodeURIComponent(eventSlug)}/user/${encodeURIComponent(review.reviewer.id)}`}
+              className="flex items-center gap-2 hover:underline"
+            >
+              <Avatar className="size-6">
+                <AvatarImage
+                  src={discordAvatarUrl(review.reviewer)}
+                  alt={review.reviewer.displayName}
+                />
+                <AvatarFallback className="text-[10px]">
+                  {review.reviewer.displayName.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium">{review.reviewer.displayName}</span>
+            </Link>
             {review.isFromDifferentSubmission && (
               <Tooltip>
                 <TooltipTrigger asChild>
