@@ -1,8 +1,18 @@
-import { ClipboardCheck, Globe, Inbox, Settings, Star, Upload, Users } from 'lucide-react';
+import {
+  ClipboardCheck,
+  Globe,
+  Inbox,
+  LayoutDashboard,
+  Settings,
+  Star,
+  Upload,
+  Users,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
+import { OverviewPanel } from '@/components/overview-panel';
 import { ReviewersPanel } from '@/components/reviewers-panel';
 import { ReviewsPanel } from '@/components/reviews-panel';
 import { SettingsPanel } from '@/components/settings-panel';
@@ -24,13 +34,14 @@ import { usePageTitle } from '@/hooks/use-page-title';
 import { FILTER_PARAM_KEYS } from '@/hooks/use-reviews-filters';
 import { SORT_PARAM_KEYS } from '@/hooks/use-reviews-sort';
 
-const DEFAULT_TAB = 'reviews';
+const DEFAULT_TAB = 'overview';
 
 const TAB_LABELS: Record<string, string> = {
+  overview: 'Overview',
   reviews: 'Reviews',
+  reviewers: 'Reviewers',
   submissions: 'Submissions',
   submitters: 'Submitters',
-  reviewers: 'Reviewers',
   import: 'Import',
   settings: 'Settings',
 };
@@ -182,9 +193,17 @@ export function EventDetail() {
       }}
     >
       <TabsList variant="line">
+        <TabsTrigger value="overview">
+          <LayoutDashboard />
+          Overview
+        </TabsTrigger>
         <TabsTrigger value="reviews">
           <ClipboardCheck />
           Reviews
+        </TabsTrigger>
+        <TabsTrigger value="reviewers">
+          <Star />
+          Reviewers
         </TabsTrigger>
         <TabsTrigger value="submissions">
           <Inbox />
@@ -193,10 +212,6 @@ export function EventDetail() {
         <TabsTrigger value="submitters">
           <Users />
           Submitters
-        </TabsTrigger>
-        <TabsTrigger value="reviewers">
-          <Star />
-          Reviewers
         </TabsTrigger>
         {event.isEventAdmin && (
           <TabsTrigger value="import">
@@ -211,17 +226,20 @@ export function EventDetail() {
           </TabsTrigger>
         )}
       </TabsList>
+      <TabsContent value="overview">
+        <OverviewPanel eventSlug={event.slug} />
+      </TabsContent>
       <TabsContent value="reviews">
         <ReviewsPanel eventSlug={event.slug} />
+      </TabsContent>
+      <TabsContent value="reviewers">
+        <ReviewersPanel eventSlug={event.slug} />
       </TabsContent>
       <TabsContent value="submissions">
         <SubmissionsPanel eventSlug={event.slug} />
       </TabsContent>
       <TabsContent value="submitters">
         <SubmittersPanel eventSlug={event.slug} />
-      </TabsContent>
-      <TabsContent value="reviewers">
-        <ReviewersPanel eventSlug={event.slug} />
       </TabsContent>
       {event.isEventAdmin && (
         <TabsContent value="import">
