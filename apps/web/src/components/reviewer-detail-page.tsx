@@ -358,32 +358,34 @@ function PaginatedList<T>({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium">{title}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium">{title}</span>
+        {pageCount > 1 && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              Page {page + 1} of {pageCount}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= pageCount - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        )}
+      </div>
       {items.length === 0 && <p className="text-muted-foreground text-sm">{emptyMessage}</p>}
       {pageItems.map(renderItem)}
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Previous
-          </Button>
-          <span className="text-muted-foreground text-xs">
-            Page {page + 1} of {pageCount}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= pageCount - 1}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
