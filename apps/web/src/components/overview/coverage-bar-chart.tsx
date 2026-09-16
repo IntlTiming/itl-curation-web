@@ -126,7 +126,7 @@ export function CoverageBarChart({
   rows: MeterCoverageRow[];
   playstyleFilter: PlaystyleFilter;
 }) {
-  const [perMeter, setPerMeter] = useState(true);
+  const [perMeter, setPerMeter] = useState(false);
   const checkboxId = useId();
 
   const allData = useMemo(() => {
