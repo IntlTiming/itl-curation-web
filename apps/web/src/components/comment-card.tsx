@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { MoreVertical } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { CommentReactions } from '@/components/comment-reactions';
 import { MarkdownContent } from '@/components/markdown-content';
 import { MarkdownEditor } from '@/components/markdown-editor';
@@ -40,12 +41,14 @@ function lengthLimitError(value: string, max: number): string | null {
 // than a modal, since a single markdown field doesn't warrant one.
 export function CommentCard({
   comment,
+  eventSlug,
   currentUserId,
   onEdit,
   onDelete,
   onToggleReaction,
 }: {
   comment: SubmissionComment;
+  eventSlug: string;
   currentUserId: string | null;
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
@@ -91,13 +94,21 @@ export function CommentCard({
     <div className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Avatar className="size-6">
-            <AvatarImage src={discordAvatarUrl(comment.author)} alt={comment.author.displayName} />
-            <AvatarFallback className="text-[10px]">
-              {comment.author.displayName.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-sm font-medium">{comment.author.displayName}</span>
+          <Link
+            to={`/events/${encodeURIComponent(eventSlug)}/user/${encodeURIComponent(comment.author.id)}`}
+            className="flex items-center gap-2 hover:underline"
+          >
+            <Avatar className="size-6">
+              <AvatarImage
+                src={discordAvatarUrl(comment.author)}
+                alt={comment.author.displayName}
+              />
+              <AvatarFallback className="text-[10px]">
+                {comment.author.displayName.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">{comment.author.displayName}</span>
+          </Link>
           {comment.isStale && (
             <Tooltip>
               <TooltipTrigger asChild>

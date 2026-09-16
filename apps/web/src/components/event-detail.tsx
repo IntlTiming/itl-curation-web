@@ -1,8 +1,9 @@
-import { ClipboardCheck, Globe, Inbox, Settings, Upload, Users } from 'lucide-react';
+import { ClipboardCheck, Globe, Inbox, Settings, Star, Upload, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
+import { ReviewersPanel } from '@/components/reviewers-panel';
 import { ReviewsPanel } from '@/components/reviews-panel';
 import { SettingsPanel } from '@/components/settings-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
@@ -29,6 +30,7 @@ const TAB_LABELS: Record<string, string> = {
   reviews: 'Reviews',
   submissions: 'Submissions',
   submitters: 'Submitters',
+  reviewers: 'Reviewers',
   import: 'Import',
   settings: 'Settings',
 };
@@ -192,6 +194,10 @@ export function EventDetail() {
           <Users />
           Submitters
         </TabsTrigger>
+        <TabsTrigger value="reviewers">
+          <Star />
+          Reviewers
+        </TabsTrigger>
         {event.isEventAdmin && (
           <TabsTrigger value="import">
             <Upload />
@@ -213,6 +219,9 @@ export function EventDetail() {
       </TabsContent>
       <TabsContent value="submitters">
         <SubmittersPanel eventSlug={event.slug} />
+      </TabsContent>
+      <TabsContent value="reviewers">
+        <ReviewersPanel eventSlug={event.slug} />
       </TabsContent>
       {event.isEventAdmin && (
         <TabsContent value="import">
