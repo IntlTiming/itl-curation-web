@@ -398,7 +398,7 @@ export function ReviewerDetailPage() {
   const reviewerName = detail.status === 'loaded' ? displayNameOf(detail) : null;
   usePageBreadcrumb(
     event.status === 'loaded' && reviewerName
-      ? [{ label: event.event.name, to: `/events/${slug}` }, { label: reviewerName }]
+      ? [{ label: event.event.name, to: `/events/${slug}?tab=reviewers` }, { label: reviewerName }]
       : [],
   );
   usePageTitle(
