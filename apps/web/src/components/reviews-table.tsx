@@ -59,6 +59,17 @@ export const SORTABLE_COLUMNS = new Set<SortColumn>([
   'lastActivity',
 ]);
 
+const NUMERIC_SORT_COLUMNS = new Set<SortColumn>([
+  'meter',
+  'reviewCount',
+  'avgRating',
+  'minRating',
+  'maxRating',
+  'stdevRating',
+  'commentCount',
+  'lastActivity',
+]);
+
 // These columns' content is a fixed-size icon button, a short badge, or a small number - never
 // worth stretching wider than that, unlike Title/Pack/Stepartist/Submitter which hold
 // variable-length text. `w-px` is the standard Tailwind shrink-to-fit trick: combined with the
@@ -323,7 +334,7 @@ function SortableHeader({
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1 font-medium"
+      className="inline-flex cursor-pointer items-center gap-1 font-medium"
       onClick={() => onToggle(column)}
     >
       {label}
@@ -364,9 +375,9 @@ export function ReviewsTable({
 
   function toggleSort(column: SortColumn) {
     if (!sort || sort.column !== column) {
+      onSortChange({ column, direction: NUMERIC_SORT_COLUMNS.has(column) ? 'desc' : 'asc' });
+    } else if (sort.direction === 'desc') {
       onSortChange({ column, direction: 'asc' });
-    } else if (sort.direction === 'asc') {
-      onSortChange({ column, direction: 'desc' });
     } else {
       onSortChange(null); // third click reverts to the server's default row order
     }
