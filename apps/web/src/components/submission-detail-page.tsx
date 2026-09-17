@@ -240,7 +240,7 @@ export function SubmissionDetailPage() {
       : null;
   usePageBreadcrumb(
     event.status === 'loaded' && chartTitle
-      ? [{ label: event.event.name, to: `/events/${slug}` }, { label: chartTitle }]
+      ? [{ label: event.event.name, to: `/events/${slug}?tab=reviews` }, { label: chartTitle }]
       : [],
   );
   usePageTitle(
@@ -281,7 +281,7 @@ export function SubmissionDetailPage() {
   return (
     <div className="flex w-full flex-col gap-4 self-start">
       <Link
-        to={`/events/${encodeURIComponent(slug ?? '')}`}
+        to={`/events/${encodeURIComponent(slug ?? '')}?tab=reviews`}
         className="text-muted-foreground inline-flex w-fit items-center gap-1 text-sm hover:underline"
       >
         <ArrowLeft className="size-4" /> Back to event
