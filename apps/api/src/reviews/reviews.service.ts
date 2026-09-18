@@ -255,6 +255,20 @@ type ReviewFields = {
   basicChecks: BasicCheckPair[];
 };
 
+// The DTO makes every field optional so partial edits (e.g. only touching notes) don't have to
+// resend everything, but a review saved with literally nothing set is never a real opinion - the
+// client already blocks this in review-modal.tsx, and this is the server-side backstop for any
+// other caller (direct API use, a future second frontend) that might not.
+export function reviewFieldsEmpty(fields: ReviewFields): boolean {
+  return (
+    fields.rating == null &&
+    fields.passing == null &&
+    fields.scoring == null &&
+    !fields.notes &&
+    fields.basicChecks.length === 0
+  );
+}
+
 // Decides whether saving a review needs a ReviewRevision written at all - an idempotent re-save
 // (e.g. the reviewer just reopened and resubmitted without changing anything) shouldn't flood the
 // append-only audit trail with no-op entries.
@@ -629,6 +643,10 @@ export class ReviewsService {
         note: check.note ?? null,
       })),
     };
+
+    if (reviewFieldsEmpty(nextFields)) {
+      throw new BadRequestException('Review must include at least one field');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.review.findUnique({

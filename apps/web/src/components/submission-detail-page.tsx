@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, ChevronDown, RefreshCw, SquareCheck, SquarePen } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
+import { BasicCheckList } from '@/components/basic-check-list';
 import { chartBadgeLabel, ChartDetail, DifficultyBadge } from '@/components/chart-detail';
 import { CommentsPanel } from '@/components/comments-panel';
 import { GradientBadge } from '@/components/gradient-badge';
@@ -205,20 +206,7 @@ function ReviewCard({ review, eventSlug }: { review: SubmissionDetailReview; eve
         </span>
       </div>
 
-      {review.basicChecks.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {review.basicChecks.map((check) => (
-            <Tooltip key={check.id}>
-              <TooltipTrigger asChild>
-                <Badge variant={check.level === 'DISQUALIFIED' ? 'destructive' : 'outline'}>
-                  {check.label}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>{check.note || 'No additional detail provided.'}</TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
-      )}
+      <BasicCheckList checks={review.basicChecks} />
 
       <MarkdownContent markdown={review.notes} />
     </div>
@@ -272,7 +260,7 @@ export function SubmissionDetailPage() {
     );
   }
 
-  const { submission, reviews, stats } = detail;
+  const { submission, reviews, reviewRevisions, stats } = detail;
   const ownReview =
     auth.status === 'authenticated'
       ? reviews.find((r) => r.submissionId === fileId && r.reviewer.id === auth.user.id)
@@ -350,7 +338,9 @@ export function SubmissionDetailPage() {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          {slug && fileId && <CommentsPanel slug={slug} fileId={fileId} />}
+          {slug && fileId && (
+            <CommentsPanel slug={slug} fileId={fileId} reviewRevisions={reviewRevisions} />
+          )}
         </div>
       </div>
 

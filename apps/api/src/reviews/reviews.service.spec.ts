@@ -8,6 +8,7 @@ import {
   buildTechTagRankFragment,
   mapRawReviewRow,
   reviewFieldsChanged,
+  reviewFieldsEmpty,
 } from './reviews.service.js';
 
 const BASE_QUERY: ReviewsQueryDto = {
@@ -393,5 +394,55 @@ describe('reviewFieldsChanged', () => {
     const a = { ...BASE, basicChecks: [{ basicCheckReasonId: 'a', note: null }] };
     const b = { ...BASE, basicChecks: [] };
     expect(reviewFieldsChanged(a, b)).toBe(true);
+  });
+});
+
+describe('reviewFieldsEmpty', () => {
+  it('returns true when every field is null/empty', () => {
+    expect(
+      reviewFieldsEmpty({
+        rating: null,
+        passing: null,
+        scoring: null,
+        notes: null,
+        basicChecks: [],
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false when only rating is set', () => {
+    expect(
+      reviewFieldsEmpty({
+        rating: 150,
+        passing: null,
+        scoring: null,
+        notes: null,
+        basicChecks: [],
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when only a basic check is set, even with no note', () => {
+    expect(
+      reviewFieldsEmpty({
+        rating: null,
+        passing: null,
+        scoring: null,
+        notes: null,
+        basicChecks: [{ basicCheckReasonId: 'a', note: null }],
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when only notes is set', () => {
+    expect(
+      reviewFieldsEmpty({
+        rating: null,
+        passing: null,
+        scoring: null,
+        notes: 'hi',
+        basicChecks: [],
+      }),
+    ).toBe(false);
   });
 });

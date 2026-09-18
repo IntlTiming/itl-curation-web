@@ -46,9 +46,46 @@ export type SubmissionDetailStats = {
   stdevRating: number | null;
 };
 
+export type ReviewRevisionEntryContent = {
+  rating: number | null;
+  passing: number | null;
+  scoring: number | null;
+  notes: string | null;
+  basicChecks: {
+    id: string;
+    code: string;
+    label: string;
+    level: BasicCheckLevel;
+    note: string | null;
+  }[];
+};
+
+// One historical state in a review's edit chain - see submissions.service.ts's
+// buildReviewRevisionEntries for how this is reconstructed server-side. An unedited review
+// (never revised) still contributes one "submitted" entry with showDetails: false, so it appears
+// in the comments feed without duplicating values already shown on its live Reviews-column card.
+export type ReviewRevisionEntry = {
+  id: string;
+  kind: 'submitted' | 'updated';
+  reviewId: string;
+  submissionId: string;
+  reviewer: {
+    id: string;
+    displayName: string;
+    discordId: string;
+    discordAvatarHash: string | null;
+  };
+  content: ReviewRevisionEntryContent;
+  timestamp: string;
+  chartHash: string;
+  isStale: boolean;
+  showDetails: boolean;
+};
+
 export type SubmissionDetailResponse = {
   submission: SubmissionDetailSubmission;
   reviews: SubmissionDetailReview[];
+  reviewRevisions: ReviewRevisionEntry[];
   stats: SubmissionDetailStats | null;
 };
 
