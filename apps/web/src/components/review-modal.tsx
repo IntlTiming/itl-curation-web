@@ -251,25 +251,21 @@ export function ReviewModal({
       ? reasonsResult.reasons.filter((r) => r.level === 'WARNING')
       : [];
 
-  // A rating is only optional when the review is flagging a disqualification - a warning
-  // (or no basic check at all) still needs one. "A note somewhere" is satisfied by either the
-  // review's own notes or any checked basic check's note - a reviewer explaining themselves
-  // via a check-specific note shouldn't also be forced to restate it in the general notes box.
-  const disqualifiedReasonIds = new Set(disqualifiedReasons.map((r) => r.id));
-  const hasCheckedDisqualification = form
-    ? Object.entries(form.basicChecks).some(
-        ([reasonId, value]) => value.checked && disqualifiedReasonIds.has(reasonId),
-      )
+  // A review just needs to be non-empty - any one of a rating, passing, scoring, a note, or a
+  // checked basic check (with or without its own note) is enough. No field is individually
+  // required.
+  const hasAnyCheckedBasicCheck = form
+    ? Object.values(form.basicChecks).some((v) => v.checked)
     : false;
-  const hasNoteSomewhere =
-    !!form?.notes.trim() ||
-    (form ? Object.values(form.basicChecks).some((v) => v.checked && v.note.trim()) : false);
-
-  const missingFields: string[] = [];
-  if (!hasCheckedDisqualification && form?.rating == null) missingFields.push('a rating');
-  if (!hasNoteSomewhere) missingFields.push('a note (on the review or a basic check)');
-  const validationMessage = missingFields.length
-    ? `Add ${missingFields.join(' and ')} to submit`
+  const isReviewEmpty =
+    !form ||
+    (form.rating == null &&
+      form.passing == null &&
+      form.scoring == null &&
+      !form.notes.trim() &&
+      !hasAnyCheckedBasicCheck);
+  const validationMessage = isReviewEmpty
+    ? 'Add a rating, passing, scoring, a note, or a basic check to submit'
     : null;
 
   function requestClose() {

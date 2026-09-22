@@ -152,6 +152,12 @@ export type ReviewsResponse = {
   // no unreviewed-only, full meter range) - a stable baseline the frontend uses for "Showing
   // x of y" text, independent of whichever other filters happen to be active right now.
   totalCount: number;
+  // Distinct Submission.focus values available under every OTHER active filter, same idea as
+  // meterBounds - excludes the user's own focus selection so picking one option never removes
+  // the rest from the list. Populates the Focus filter's checkbox list, since (unlike Tech
+  // Tags) there's no fixed enum to hardcode client-side - see Submission.focus's schema
+  // comment.
+  focusOptions: string[];
 };
 
 export function mapRawReviewRow(row: RawReviewRow, basicChecks: ReviewsBasicCheck[]): ReviewsRow {
@@ -254,6 +260,20 @@ type ReviewFields = {
   notes: string | null;
   basicChecks: BasicCheckPair[];
 };
+
+// The DTO makes every field optional so partial edits (e.g. only touching notes) don't have to
+// resend everything, but a review saved with literally nothing set is never a real opinion - the
+// client already blocks this in review-modal.tsx, and this is the server-side backstop for any
+// other caller (direct API use, a future second frontend) that might not.
+export function reviewFieldsEmpty(fields: ReviewFields): boolean {
+  return (
+    fields.rating == null &&
+    fields.passing == null &&
+    fields.scoring == null &&
+    !fields.notes &&
+    fields.basicChecks.length === 0
+  );
+}
 
 // Decides whether saving a review needs a ReviewRevision written at all - an idempotent re-save
 // (e.g. the reviewer just reopened and resubmitted without changing anything) shouldn't flood the
@@ -427,12 +447,25 @@ export class ReviewsService {
       `,
     );
 
+    const focusOptionRows = await this.prisma.$queryRaw<{ focus: string }[]>(
+      Prisma.sql`
+        SELECT DISTINCT s.focus
+        FROM submissions s
+        JOIN charts c ON c."submissionId" = s."fileId"
+        WHERE ${baseWhere}
+        ORDER BY s.focus
+      `,
+    );
+
     const rowFragments = [...baseFragments];
     if (query.minMeter !== undefined) {
       rowFragments.push(Prisma.sql`c.meter >= ${query.minMeter}`);
     }
     if (query.maxMeter !== undefined) {
       rowFragments.push(Prisma.sql`c.meter <= ${query.maxMeter}`);
+    }
+    if (query.focus.length > 0) {
+      rowFragments.push(Prisma.sql`s.focus IN (${Prisma.join(query.focus)})`);
     }
     const rowsWhere = Prisma.join(rowFragments, ' AND ');
 
@@ -562,6 +595,7 @@ export class ReviewsService {
       ),
       meterBounds: minMeter != null && maxMeter != null ? { min: minMeter, max: maxMeter } : null,
       totalCount: Number(totalCountRows[0]?.count ?? 0),
+      focusOptions: focusOptionRows.map((row) => row.focus),
     };
   }
 
@@ -629,6 +663,10 @@ export class ReviewsService {
         note: check.note ?? null,
       })),
     };
+
+    if (reviewFieldsEmpty(nextFields)) {
+      throw new BadRequestException('Review must include at least one field');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.review.findUnique({

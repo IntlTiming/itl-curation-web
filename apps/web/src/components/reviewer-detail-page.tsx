@@ -241,7 +241,7 @@ function ReviewerCommentCard({
   );
 }
 
-// More useful than the avg/stdev summary above for seeing this reviewer's actual tendencies at a
+// More useful than the avg. rating summary above for seeing this reviewer's actual tendencies at a
 // glance - e.g. a reviewer who never gives anything above 1.5 looks identical to one who's
 // evenly spread when you only see the average, and a per-meter breakdown surfaces things like
 // "only gives 3s to lower meters" that a single rating-only distribution can't. The null row
@@ -475,10 +475,6 @@ export function ReviewerDetailPage() {
             <span className="inline-flex items-center gap-1.5">
               <span className="text-muted-foreground">Avg. rating:</span>
               <RatingCell value={detail.avgRating} />
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="text-muted-foreground">Stdev:</span>
-              <StdevCell value={detail.stdevRating} />
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="text-muted-foreground">Consensus deviation:</span>

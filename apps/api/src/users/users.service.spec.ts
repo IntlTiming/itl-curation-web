@@ -53,7 +53,6 @@ describe('mapUserRow', () => {
     avgRating: 200,
     minRating: 100,
     maxRating: 300,
-    stdevRating: 50,
     lastActivity: new Date('2026-02-01'),
   };
 
@@ -62,7 +61,6 @@ describe('mapUserRow', () => {
     expect(mapped.avgRating).toBe(2);
     expect(mapped.minRating).toBe(1);
     expect(mapped.maxRating).toBe(3);
-    expect(mapped.stdevRating).toBe(0.5);
   });
 
   it('converts the bigint reviewCount and commentCount to numbers', () => {
@@ -78,12 +76,10 @@ describe('mapUserRow', () => {
       avgRating: null,
       minRating: null,
       maxRating: null,
-      stdevRating: null,
     });
     expect(mapped.avgRating).toBeNull();
     expect(mapped.minRating).toBeNull();
     expect(mapped.maxRating).toBeNull();
-    expect(mapped.stdevRating).toBeNull();
   });
 });
 

@@ -12,6 +12,9 @@ export type ReviewsFilters = {
   // exact-set matches are ranked first server-side (see reviews.service.ts's
   // buildTechTagRankFragment), same as search relevance.
   techTags: string[];
+  // Submission.focus raw values (e.g. "Speed") - a submission needs to match one of these to
+  // show up at all. No ranking effect, unlike techTags.
+  focus: string[];
 };
 
 const DEFAULT_FILTERS: ReviewsFilters = {
@@ -22,6 +25,7 @@ const DEFAULT_FILTERS: ReviewsFilters = {
   unreviewedOnly: false,
   publiclyReviewableOnly: false,
   techTags: [],
+  focus: [],
 };
 
 // Exported so event-detail.tsx can strip these atomically, in the SAME setSearchParams call
@@ -36,6 +40,7 @@ export const FILTER_PARAM_KEYS = [
   'unreviewedOnly',
   'publiclyReviewableOnly',
   'techTags',
+  'focus',
 ] as const;
 
 function storageKey(slug: string): string {
@@ -61,6 +66,12 @@ function parseFromParams(params: URLSearchParams): ReviewsFilters {
           .map((s) => s.trim())
           .filter(Boolean)
       : DEFAULT_FILTERS.techTags,
+    focus: params.has('focus')
+      ? (params.get('focus') ?? '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : DEFAULT_FILTERS.focus,
   };
 }
 
@@ -89,6 +100,7 @@ function writeToParams(filters: ReviewsFilters, params: URLSearchParams): URLSea
   setOrDelete('unreviewedOnly', 'true', !filters.unreviewedOnly);
   setOrDelete('publiclyReviewableOnly', 'true', !filters.publiclyReviewableOnly);
   setOrDelete('techTags', filters.techTags.join(','), filters.techTags.length === 0);
+  setOrDelete('focus', filters.focus.join(','), filters.focus.length === 0);
   return next;
 }
 

@@ -8,7 +8,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Loading } from '@/components/loading';
-import { RatingCell, StdevCell } from '@/components/reviews-table';
+import { RatingCell } from '@/components/reviews-table';
 import { formatTimestamp } from '@/components/submission-row';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -23,8 +23,7 @@ import {
 import { useReviewers, type Reviewer } from '@/hooks/use-reviewers';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 
-type SortColumn =
-  'reviewer' | 'reviewCount' | 'commentCount' | 'avgRating' | 'stdevRating' | 'lastActivity';
+type SortColumn = 'reviewer' | 'reviewCount' | 'commentCount' | 'avgRating' | 'lastActivity';
 type Sort = { column: SortColumn; direction: 'asc' | 'desc' };
 type SortState = Sort | null;
 
@@ -44,8 +43,6 @@ function compareByColumn(a: Reviewer, b: Reviewer, column: SortColumn): number {
       return a.commentCount - b.commentCount;
     case 'avgRating':
       return (a.avgRating ?? -1) - (b.avgRating ?? -1);
-    case 'stdevRating':
-      return (a.stdevRating ?? -1) - (b.stdevRating ?? -1);
     case 'lastActivity':
       return (
         (a.lastActivity ? Date.parse(a.lastActivity) : 0) -
@@ -158,15 +155,6 @@ export function ReviewersPanel({ eventSlug }: { eventSlug: string }) {
                   className="justify-end"
                 />
               </TableHead>
-              <TableHead className="text-right">
-                <SortableHeader
-                  label="Stdev"
-                  column="stdevRating"
-                  sort={sort}
-                  onToggle={toggleSort}
-                  className="justify-end"
-                />
-              </TableHead>
               <TableHead>
                 <SortableHeader
                   label="Last activity"
@@ -199,9 +187,6 @@ export function ReviewersPanel({ eventSlug }: { eventSlug: string }) {
                 <TableCell className="text-right">{reviewer.commentCount}</TableCell>
                 <TableCell className="text-right">
                   <RatingCell value={reviewer.avgRating} />
-                </TableCell>
-                <TableCell className="text-right">
-                  <StdevCell value={reviewer.stdevRating} />
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   {reviewer.lastActivity ? formatTimestamp(reviewer.lastActivity) : '—'}

@@ -32,7 +32,8 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
     filters.maxMeter === null &&
     !filters.unreviewedOnly &&
     !filters.publiclyReviewableOnly &&
-    filters.techTags.length === 0;
+    filters.techTags.length === 0 &&
+    filters.focus.length === 0;
   return isUnfiltered
     ? `Showing ${totalCount} ${playstyleLabel} submissions`
     : `Showing ${visibleCount} of ${totalCount} ${playstyleLabel} submissions`;
@@ -87,6 +88,7 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           meterBounds={result.status === 'loaded' ? result.meterBounds : null}
           sort={sort}
           onSortChange={setSort}
+          focusOptions={result.status === 'loaded' ? result.focusOptions : []}
         />
         <ColumnsDialog
           order={sanitizedColumnOrder}

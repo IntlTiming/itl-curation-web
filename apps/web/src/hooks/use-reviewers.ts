@@ -15,7 +15,6 @@ export type Reviewer = {
   avgRating: number | null;
   minRating: number | null;
   maxRating: number | null;
-  stdevRating: number | null;
   lastActivity: string | null;
 };
 
