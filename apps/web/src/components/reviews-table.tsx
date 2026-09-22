@@ -76,6 +76,7 @@ const NUMERIC_SORT_COLUMNS = new Set<SortColumn>([
 // table cells' existing whitespace-nowrap, the column collapses to its content's natural width
 // instead of taking a share of the table's auto-layout leftover space.
 const NARROW_COLUMNS = new Set<ReviewsColumnKey>([
+  'rowNumber',
   'addEdit',
   'meter',
   'reviewCount',
@@ -383,7 +384,10 @@ export function ReviewsTable({
     }
   }
 
-  const cellRenderers: Record<ReviewsColumnKey, (row: ReviewsRow) => ReactNode> = {
+  // rowNumber is the only renderer that needs the row's position rather than its own data -
+  // every other renderer ignores the second argument.
+  const cellRenderers: Record<ReviewsColumnKey, (row: ReviewsRow, index: number) => ReactNode> = {
+    rowNumber: (_row, index) => index + 1,
     addEdit: (row) => (
       <Button
         variant="ghost"
@@ -438,11 +442,11 @@ export function ReviewsTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sortedRows.map((row) => (
+        {sortedRows.map((row, index) => (
           <TableRow key={row.fileId} className={rowToneClassName(row)}>
             {visibleColumns.map((key) => (
               <TableCell key={key} className={columnClassName(key)}>
-                {cellRenderers[key](row)}
+                {cellRenderers[key](row, index)}
               </TableCell>
             ))}
           </TableRow>

@@ -64,4 +64,14 @@ export class ReviewsQueryDto {
   @IsArray()
   @IsString({ each: true })
   techTags: string[] = [];
+
+  // Submission.focus raw values (e.g. "Speed", "Stamina") from a comma-separated query param,
+  // e.g. ?focus=Speed,Stamina - unvalidated, like techTags above, since the option list itself
+  // changes between seasons (see the schema comment on Submission.focus) rather than being a
+  // fixed enum.
+  @IsOptional()
+  @Transform(toStringArray)
+  @IsArray()
+  @IsString({ each: true })
+  focus: string[] = [];
 }

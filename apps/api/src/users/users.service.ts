@@ -17,7 +17,6 @@ export type RawUserRow = {
   avgRating: number | null;
   minRating: number | null;
   maxRating: number | null;
-  stdevRating: number | null;
   lastActivity: Date | null;
 };
 
@@ -34,7 +33,6 @@ export type UserRow = {
   avgRating: number | null;
   minRating: number | null;
   maxRating: number | null;
-  stdevRating: number | null;
   lastActivity: Date | null;
 };
 
@@ -173,7 +171,6 @@ export function buildUsersQuery(eventId: string, userId?: string): Prisma.Sql {
       AVG(er.rating)::float8 AS "avgRating",
       MIN(er.rating) AS "minRating",
       MAX(er.rating) AS "maxRating",
-      CASE WHEN COUNT(er.rating) < 2 THEN NULL ELSE STDDEV_POP(er.rating) END AS "stdevRating",
       MAX(er."updatedAt") AS "lastActivity"
     FROM all_ids a
     JOIN users u ON u.id = a."userId"
@@ -195,7 +192,6 @@ export function mapUserRow(row: RawUserRow): UserRow {
     avgRating: row.avgRating == null ? null : row.avgRating / 100,
     minRating: row.minRating == null ? null : row.minRating / 100,
     maxRating: row.maxRating == null ? null : row.maxRating / 100,
-    stdevRating: row.stdevRating == null ? null : row.stdevRating / 100,
   };
 }
 

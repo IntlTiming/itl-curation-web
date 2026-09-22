@@ -16,6 +16,7 @@ const BASE_QUERY: ReviewsQueryDto = {
   unreviewedOnly: false,
   publiclyReviewableOnly: false,
   techTags: [],
+  focus: [],
 };
 
 function fragmentTexts(fragments: ReturnType<typeof buildBaseWhereFragments>): string[] {

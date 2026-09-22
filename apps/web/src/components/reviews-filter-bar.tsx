@@ -24,6 +24,32 @@ import { TECH_TAGS, type TechCategory } from '@/lib/tech-tags';
 
 const TECH_TAG_CATEGORIES: TechCategory[] = ['BXF', 'TECH', 'NOTECH'];
 
+// Display order for the Focus popover's checkbox list - tech tiers ascending, then the
+// remaining non-tech categories. Submission.focus's option list changes between seasons (see
+// its schema comment), so this is a known-value lookup, not the source of truth for which
+// values exist: sortFocusOptions falls back to alphabetical for anything not listed here,
+// rather than dropping it, so a season's new/renamed focus value still shows up (just at the
+// end) until this list is updated to include it.
+const FOCUS_ORDER = [
+  'Tech/Timing - no tech',
+  'Tech/Timing - single tech',
+  'Tech/Timing - multiple tech',
+  'Stamina',
+  'Footspeed',
+  'Mods',
+];
+
+function sortFocusOptions(options: string[]): string[] {
+  return [...options].sort((a, b) => {
+    const rankA = FOCUS_ORDER.indexOf(a);
+    const rankB = FOCUS_ORDER.indexOf(b);
+    if (rankA !== -1 && rankB !== -1) return rankA - rankB;
+    if (rankA !== -1) return -1;
+    if (rankB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+}
+
 const SEARCH_DEBOUNCE_MS = 350;
 const METER_COMMIT_DEBOUNCE_MS = 350;
 
@@ -34,6 +60,7 @@ export function ReviewsFilterBar({
   meterBounds,
   sort,
   onSortChange,
+  focusOptions,
 }: {
   filters: ReviewsFilters;
   onFiltersChange: (update: Partial<ReviewsFilters>) => void;
@@ -44,6 +71,10 @@ export function ReviewsFilterBar({
   // it back to null (not the table's own toggleSort cycle) when clicked.
   sort: SortState;
   onSortChange: (sort: SortState) => void;
+  // Distinct Submission.focus values available under every other active filter - populates the
+  // Focus popover's checkbox list. Unlike Tech Tags, there's no fixed client-side enum since the
+  // option list changes between seasons (see Submission.focus's schema comment).
+  focusOptions: string[];
 }) {
   const [searchInput, setSearchInput] = useState(filters.search);
   // Starts open if a filter living inside it is already active on mount (e.g. loaded from the
@@ -287,6 +318,62 @@ export function ReviewsFilterBar({
                     })}
                   </div>
                 ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>Focus</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-8 justify-start">
+                Focus
+                {filters.focus.length > 0 && (
+                  <Badge variant="secondary">{filters.focus.length}</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <div className="flex items-center justify-between gap-2 border-b px-2.5 py-1.5">
+                <span className="text-muted-foreground text-xs font-medium uppercase">Focus</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-xs"
+                  disabled={filters.focus.length === 0}
+                  onClick={() => onFiltersChange({ focus: [] })}
+                >
+                  Unselect all
+                </Button>
+              </div>
+              <div className="max-h-80 overflow-y-auto p-2.5">
+                {focusOptions.length === 0 && (
+                  <p className="text-muted-foreground px-1 py-1 text-sm">No options available</p>
+                )}
+                {sortFocusOptions(focusOptions).map((option) => {
+                  const id = `focus-${option}`;
+                  const checked = filters.focus.includes(option);
+                  return (
+                    <div key={option} className="flex items-center gap-2 py-1">
+                      <Checkbox
+                        id={id}
+                        checked={checked}
+                        onCheckedChange={(next) =>
+                          onFiltersChange({
+                            focus:
+                              next === true
+                                ? [...filters.focus, option]
+                                : filters.focus.filter((value) => value !== option),
+                          })
+                        }
+                      />
+                      <Label htmlFor={id} className="text-sm font-normal">
+                        {option}
+                      </Label>
+                    </div>
+                  );
+                })}
               </div>
             </PopoverContent>
           </Popover>

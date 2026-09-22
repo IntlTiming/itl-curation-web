@@ -62,6 +62,9 @@ type ReviewsResponse = {
   rows: ReviewsRow[];
   meterBounds: ReviewsMeterBounds;
   totalCount: number;
+  // Distinct Submission.focus values available under every other active filter - populates the
+  // Focus filter's checkbox list (see reviews.service.ts's focusOptions comment).
+  focusOptions: string[];
 };
 
 export type ReviewsState =
@@ -72,6 +75,7 @@ export type ReviewsState =
       rows: ReviewsRow[];
       meterBounds: ReviewsMeterBounds;
       totalCount: number;
+      focusOptions: string[];
     };
 
 function buildQueryString(filters: ReviewsFilters): string {
@@ -84,6 +88,7 @@ function buildQueryString(filters: ReviewsFilters): string {
   if (filters.unreviewedOnly) params.set('unreviewedOnly', 'true');
   if (filters.publiclyReviewableOnly) params.set('publiclyReviewableOnly', 'true');
   if (filters.techTags.length > 0) params.set('techTags', filters.techTags.join(','));
+  if (filters.focus.length > 0) params.set('focus', filters.focus.join(','));
   return params.toString();
 }
 
@@ -99,8 +104,8 @@ export function useReviews(slug: string, filters: ReviewsFilters) {
     setState((prev) => (prev.status === 'loaded' ? prev : { status: 'loading' }));
     fetch(`/api/events/${encodeURIComponent(slug)}/reviews?${buildQueryString(filters)}`)
       .then((res) => (res.ok ? (res.json() as Promise<ReviewsResponse>) : Promise.reject()))
-      .then(({ rows, meterBounds, totalCount }) =>
-        setState({ status: 'loaded', rows, meterBounds, totalCount }),
+      .then(({ rows, meterBounds, totalCount, focusOptions }) =>
+        setState({ status: 'loaded', rows, meterBounds, totalCount, focusOptions }),
       )
       .catch(() => setState({ status: 'error' }));
   }, [slug, filters]);
