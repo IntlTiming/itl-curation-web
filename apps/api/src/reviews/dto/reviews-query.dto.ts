@@ -51,6 +51,13 @@ export class ReviewsQueryDto {
   @IsBoolean()
   unreviewedOnly: boolean = false;
 
+  // Scoped to the calling user - see buildBaseWhereFragments for why it's by submission, not
+  // chart hash like unreviewedOnly.
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  unreviewedByMeOnly: boolean = false;
+
   @IsOptional()
   @Transform(toBoolean)
   @IsBoolean()

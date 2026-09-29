@@ -385,7 +385,11 @@ const DEFAULT_ORDER_FRAGMENTS = [
 // always computed against every OTHER active filter (search/playstyle/unreviewed) without
 // being narrowed by the user's own meter selection. Exported standalone (rather than a
 // private service method) so it's directly unit-testable without mocking Prisma.
-export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto): Prisma.Sql[] {
+export function buildBaseWhereFragments(
+  eventId: string,
+  userId: string,
+  query: ReviewsQueryDto,
+): Prisma.Sql[] {
   // Both queries below INNER JOIN charts, so submissions with no successfully parsed
   // chart (Meter/Title have nothing to show for them) are excluded implicitly. Ignored
   // submissions are always excluded too. Don't add a filter to surface them here: the import
@@ -399,6 +403,19 @@ export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto)
 
   if (query.unreviewedOnly) {
     fragments.push(Prisma.sql`NOT EXISTS (SELECT 1 FROM reviews r WHERE r."chartHash" = c.hash)`);
+  }
+
+  // Deliberately by submissionId + reviewerId, NOT chart hash like unreviewedOnly above - it's
+  // the exact inverse of the rows query's hasOwnReview, so this filter hides precisely the rows
+  // showing the Edit (rather than Add) icon. A stale review of your own still counts as
+  // reviewed, since the edit modal would open that same review rather than start a new one.
+  if (query.unreviewedByMeOnly) {
+    fragments.push(Prisma.sql`
+      NOT EXISTS (
+        SELECT 1 FROM reviews r
+        WHERE r."submissionId" = s."fileId" AND r."reviewerId" = ${userId}
+      )
+    `);
   }
 
   if (query.publiclyReviewableOnly) {
@@ -451,7 +468,7 @@ export class ReviewsService {
     query: ReviewsQueryDto,
   ): Promise<ReviewsResponse> {
     const term = query.search?.trim() || null;
-    const baseFragments = buildBaseWhereFragments(eventId, query);
+    const baseFragments = buildBaseWhereFragments(eventId, userId, query);
     const baseWhere = Prisma.join(baseFragments, ' AND ');
 
     const bounds = await this.prisma.$queryRaw<

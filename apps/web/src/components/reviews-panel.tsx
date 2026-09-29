@@ -31,6 +31,7 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
     filters.minMeter === null &&
     filters.maxMeter === null &&
     !filters.unreviewedOnly &&
+    !filters.unreviewedByMeOnly &&
     !filters.publiclyReviewableOnly &&
     filters.techTags.length === 0 &&
     filters.focus.length === 0;

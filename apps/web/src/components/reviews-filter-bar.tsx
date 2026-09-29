@@ -82,12 +82,13 @@ export function ReviewsFilterBar({
   // Deliberately a one-time lazy init, not a synced effect - it won't re-open on its own if the
   // user manually collapses it after turning the filter on.
   const [additionalFiltersOpen, setAdditionalFiltersOpen] = useState(
-    () => filters.publiclyReviewableOnly,
+    () => filters.publiclyReviewableOnly || filters.unreviewedByMeOnly,
   );
   const searchId = useId();
   const singleId = useId();
   const doubleId = useId();
   const unreviewedId = useId();
+  const unreviewedByMeId = useId();
   const publiclyReviewableId = useId();
 
   useEffect(() => {
@@ -416,15 +417,27 @@ export function ReviewsFilterBar({
             Additional filters
           </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="flex items-center gap-2 pt-3">
-          <Checkbox
-            id={publiclyReviewableId}
-            checked={filters.publiclyReviewableOnly}
-            onCheckedChange={(checked) =>
-              onFiltersChange({ publiclyReviewableOnly: checked === true })
-            }
-          />
-          <Label htmlFor={publiclyReviewableId}>Show only publicly reviewable submissions</Label>
+        <CollapsibleContent className="flex flex-col gap-2 pt-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={publiclyReviewableId}
+              checked={filters.publiclyReviewableOnly}
+              onCheckedChange={(checked) =>
+                onFiltersChange({ publiclyReviewableOnly: checked === true })
+              }
+            />
+            <Label htmlFor={publiclyReviewableId}>Show only publicly reviewable submissions</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={unreviewedByMeId}
+              checked={filters.unreviewedByMeOnly}
+              onCheckedChange={(checked) =>
+                onFiltersChange({ unreviewedByMeOnly: checked === true })
+              }
+            />
+            <Label htmlFor={unreviewedByMeId}>Only unreviewed by me</Label>
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </div>

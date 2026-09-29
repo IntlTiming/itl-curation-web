@@ -7,6 +7,7 @@ export type ReviewsFilters = {
   minMeter: number | null;
   maxMeter: number | null;
   unreviewedOnly: boolean;
+  unreviewedByMeOnly: boolean;
   publiclyReviewableOnly: boolean;
   // TechTag.code values (e.g. "BR", "XO") - a submission needs at least one to show up at all;
   // exact-set matches are ranked first server-side (see reviews.service.ts's
@@ -23,6 +24,7 @@ const DEFAULT_FILTERS: ReviewsFilters = {
   minMeter: null,
   maxMeter: null,
   unreviewedOnly: false,
+  unreviewedByMeOnly: false,
   publiclyReviewableOnly: false,
   techTags: [],
   focus: [],
@@ -38,6 +40,7 @@ export const FILTER_PARAM_KEYS = [
   'minMeter',
   'maxMeter',
   'unreviewedOnly',
+  'unreviewedByMeOnly',
   'publiclyReviewableOnly',
   'techTags',
   'focus',
@@ -59,6 +62,7 @@ function parseFromParams(params: URLSearchParams): ReviewsFilters {
     minMeter: params.has('minMeter') ? Number(params.get('minMeter')) : DEFAULT_FILTERS.minMeter,
     maxMeter: params.has('maxMeter') ? Number(params.get('maxMeter')) : DEFAULT_FILTERS.maxMeter,
     unreviewedOnly: params.get('unreviewedOnly') === 'true',
+    unreviewedByMeOnly: params.get('unreviewedByMeOnly') === 'true',
     publiclyReviewableOnly: params.get('publiclyReviewableOnly') === 'true',
     techTags: params.has('techTags')
       ? (params.get('techTags') ?? '')
@@ -98,6 +102,7 @@ function writeToParams(filters: ReviewsFilters, params: URLSearchParams): URLSea
   setOrDelete('minMeter', String(filters.minMeter), filters.minMeter === DEFAULT_FILTERS.minMeter);
   setOrDelete('maxMeter', String(filters.maxMeter), filters.maxMeter === DEFAULT_FILTERS.maxMeter);
   setOrDelete('unreviewedOnly', 'true', !filters.unreviewedOnly);
+  setOrDelete('unreviewedByMeOnly', 'true', !filters.unreviewedByMeOnly);
   setOrDelete('publiclyReviewableOnly', 'true', !filters.publiclyReviewableOnly);
   setOrDelete('techTags', filters.techTags.join(','), filters.techTags.length === 0);
   setOrDelete('focus', filters.focus.join(','), filters.focus.length === 0);
