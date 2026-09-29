@@ -25,6 +25,7 @@ export type ReviewerRecentReview = {
   }[];
   createdAt: string;
   updatedAt: string;
+  chartHash: string;
   // True when review.chartHash no longer matches the submission's current chart hash (the
   // chart was re-parsed/changed since this review was written) - same concept as
   // SubmissionDetailReview.isStale.

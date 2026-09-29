@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Settings,
   Star,
+  Unlink,
   Upload,
   Users,
 } from 'lucide-react';
@@ -12,6 +13,7 @@ import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
+import { OrphanedReviewsPanel } from '@/components/orphaned-reviews-panel';
 import { OverviewPanel } from '@/components/overview-panel';
 import { ReviewersPanel } from '@/components/reviewers-panel';
 import { ReviewsPanel } from '@/components/reviews-panel';
@@ -43,6 +45,7 @@ const TAB_LABELS: Record<string, string> = {
   submissions: 'Submissions',
   submitters: 'Submitters',
   import: 'Import',
+  'orphaned-reviews': 'Orphaned Reviews',
   settings: 'Settings',
 };
 
@@ -128,7 +131,8 @@ export function EventDetail() {
   usePageBreadcrumb(result.status === 'loaded' ? [{ label: result.event.name }] : []);
 
   const requestedTab = searchParams.get('tab') ?? DEFAULT_TAB;
-  const isAdminOnlyTab = requestedTab === 'import' || requestedTab === 'settings';
+  const isAdminOnlyTab =
+    requestedTab === 'import' || requestedTab === 'orphaned-reviews' || requestedTab === 'settings';
   const tab =
     isAdminOnlyTab && !(result.status === 'loaded' && result.event.isEventAdmin)
       ? DEFAULT_TAB
@@ -220,6 +224,12 @@ export function EventDetail() {
           </TabsTrigger>
         )}
         {event.isEventAdmin && (
+          <TabsTrigger value="orphaned-reviews">
+            <Unlink />
+            Orphaned Reviews
+          </TabsTrigger>
+        )}
+        {event.isEventAdmin && (
           <TabsTrigger value="settings">
             <Settings />
             Settings
@@ -244,6 +254,11 @@ export function EventDetail() {
       {event.isEventAdmin && (
         <TabsContent value="import">
           <ImportPanel eventSlug={event.slug} />
+        </TabsContent>
+      )}
+      {event.isEventAdmin && (
+        <TabsContent value="orphaned-reviews">
+          <OrphanedReviewsPanel eventSlug={event.slug} />
         </TabsContent>
       )}
       {event.isEventAdmin && (

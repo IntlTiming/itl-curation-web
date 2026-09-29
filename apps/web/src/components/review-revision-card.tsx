@@ -235,7 +235,7 @@ export function ReviewRevisionCard({
           {entry.isStale && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="destructive">Outdated hash</Badge>
+                <Badge variant="destructive">Outdated hash: {entry.chartHash}</Badge>
               </TooltipTrigger>
               <TooltipContent>
                 This revision's recorded chart hash no longer matches the chart's current hash - the

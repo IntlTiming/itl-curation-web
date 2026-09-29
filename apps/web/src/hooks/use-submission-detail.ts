@@ -30,6 +30,7 @@ export type SubmissionDetailReview = {
   }[];
   createdAt: string;
   updatedAt: string;
+  chartHash: string;
   // True when this review is about a DIFFERENT submission that happens to share the current
   // chart's hash - see prisma/schema.prisma's file header on chart identity.
   isFromDifferentSubmission: boolean;
