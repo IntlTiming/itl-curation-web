@@ -34,14 +34,18 @@ export type RowTone = keyof typeof ROW_TONE_CLASS;
 // A submission whose chart failed to parse still has its own submitter-claimed
 // playstyle/difficulty, so the badge falls back to that (without a meter, since the
 // submission's claim - unlike the chart - carries no meter) rather than disappearing.
+// textClassName styles just the text, not the badge - e.g. a hover underline when the cell is
+// wrapped in a link, which the inline-flex wrapper would otherwise block from propagating.
 export function ChartCell({
   chart,
   submission,
   pack,
+  textClassName,
 }: {
   chart: ChartFields | null | undefined;
   submission: SubmissionFields | null | undefined;
   pack: string;
+  textClassName?: string;
 }) {
   if (chart) {
     const title = chart.titleRomaji || chart.title;
@@ -53,7 +57,7 @@ export function ChartCell({
           difficulty={chart.difficulty}
           size="small"
         />
-        <span>
+        <span className={textClassName}>
           {pack}/{title}
           {subtitle ? ` ${subtitle}` : ''}
         </span>
@@ -68,11 +72,11 @@ export function ChartCell({
           difficulty={submission.difficulty}
           size="small"
         />
-        <span>{pack}</span>
+        <span className={textClassName}>{pack}</span>
       </span>
     );
   }
-  return <>{pack}</>;
+  return <span className={textClassName}>{pack}</span>;
 }
 
 export function CopyFileIdButton({ fileId }: { fileId: string }) {
