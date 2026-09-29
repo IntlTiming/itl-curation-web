@@ -1,4 +1,6 @@
+import { Dices } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Loading } from '@/components/loading';
 import { ReviewModal } from '@/components/review-modal';
 import { ColumnsDialog } from '@/components/columns-dialog';
@@ -15,8 +17,10 @@ import {
 } from '@/components/reviews-columns';
 import { ReviewsFilterBar } from '@/components/reviews-filter-bar';
 import { ReviewsTable } from '@/components/reviews-table';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { useReviews } from '@/hooks/use-reviews';
+import { useReviews, type ReviewsRow } from '@/hooks/use-reviews';
 import { useReviewsFilters, type ReviewsFilters } from '@/hooks/use-reviews-filters';
 import { DEFAULT_SORT, useReviewsSort } from '@/hooks/use-reviews-sort';
 import { useScrollRestoration } from '@/hooks/use-scroll-restoration';
@@ -38,6 +42,45 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
   return isUnfiltered
     ? `Showing ${totalCount} ${playstyleLabel} submissions`
     : `Showing ${visibleCount} of ${totalCount} ${playstyleLabel} submissions`;
+}
+
+// Picks uniformly from the rows currently on screen (every active filter already applied
+// server-side, and the list isn't paginated) that the current user hasn't reviewed - by the
+// same per-submission hasOwnReview as the row's Add/Edit icon. Disabled while loading or on an
+// empty list; the tooltip only explains the "all reviewed" case, since an empty list already
+// says "No submissions match these filters." below.
+function RandomUnreviewedButton({
+  eventSlug,
+  rows,
+}: {
+  eventSlug: string;
+  rows: ReviewsRow[] | null;
+}) {
+  const navigate = useNavigate();
+  const unreviewed = useMemo(() => rows?.filter((row) => !row.hasOwnReview) ?? [], [rows]);
+  const allReviewed = rows !== null && rows.length > 0 && unreviewed.length === 0;
+
+  function handleClick() {
+    const pick = unreviewed[Math.floor(Math.random() * unreviewed.length)];
+    if (!pick) return;
+    navigate(
+      `/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(pick.fileId)}`,
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-block">
+          <Button variant="outline" disabled={unreviewed.length === 0} onClick={handleClick}>
+            <Dices />
+            Random!!
+          </Button>
+        </span>
+      </TooltipTrigger>
+      {allReviewed && <TooltipContent>You have reviewed all charts in this list.</TooltipContent>}
+    </Tooltip>
+  );
 }
 
 export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
@@ -91,16 +134,22 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           onSortChange={setSort}
           focusOptions={result.status === 'loaded' ? result.focusOptions : []}
         />
-        <ColumnsDialog
-          order={sanitizedColumnOrder}
-          onOrderChange={setColumnOrder}
-          visibility={sanitizedColumnVisibility}
-          onVisibilityChange={handleColumnVisibilityChange}
-          onReset={handleResetColumns}
-          labels={REVIEWS_COLUMN_LABELS}
-          forcedVisible={FORCED_VISIBLE_REVIEWS_COLUMNS}
-          description="Drag to reorder, or check a column to show or hide it in the Reviews table."
-        />
+        <div className="flex items-center gap-2">
+          <RandomUnreviewedButton
+            eventSlug={eventSlug}
+            rows={result.status === 'loaded' ? result.rows : null}
+          />
+          <ColumnsDialog
+            order={sanitizedColumnOrder}
+            onOrderChange={setColumnOrder}
+            visibility={sanitizedColumnVisibility}
+            onVisibilityChange={handleColumnVisibilityChange}
+            onReset={handleResetColumns}
+            labels={REVIEWS_COLUMN_LABELS}
+            forcedVisible={FORCED_VISIBLE_REVIEWS_COLUMNS}
+            description="Drag to reorder, or check a column to show or hide it in the Reviews table."
+          />
+        </div>
       </div>
 
       {result.status === 'loading' && <Loading message="Loading reviews…" />}
