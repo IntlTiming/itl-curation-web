@@ -11,6 +11,7 @@ import { CuratorsModule } from './curators/curators.module.js';
 import { EventsModule } from './events/events.module.js';
 import { HealthController } from './health/health.controller.js';
 import { ImportModule } from './import/import.module.js';
+import { OrphanedReviewsModule } from './orphaned-reviews/orphaned-reviews.module.js';
 import { OverviewModule } from './overview/overview.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
@@ -43,6 +44,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     BasicCheckReasonsModule,
     CuratorsModule,
     AccessRequestsModule,
+    OrphanedReviewsModule,
   ],
   controllers: [HealthController],
 })

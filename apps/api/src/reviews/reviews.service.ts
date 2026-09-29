@@ -45,8 +45,9 @@ function isMatchColumn(column: Prisma.Sql, term: string): Prisma.Sql {
 
 // Per-column relevance score for ORDER BY - similarity() is a real 0..1 score at 3+ characters,
 // but degrades to a plain 0/1 "does it contain the term at all" below that, since there's no
-// meaningful gradient to rank by yet.
-function rankColumn(column: Prisma.Sql, term: string): Prisma.Sql {
+// meaningful gradient to rank by yet. Exported so orphaned-reviews.service.ts's resubmission
+// candidate matching can rank by the same title/artist relevance convention as search.
+export function rankColumn(column: Prisma.Sql, term: string): Prisma.Sql {
   if (term.length < SHORT_SEARCH_TERM_LENGTH) {
     return Prisma.sql`(CASE WHEN ${column} ILIKE ${'%' + escapeLikePattern(term) + '%'} THEN 1 ELSE 0 END)`;
   }
@@ -384,11 +385,16 @@ const DEFAULT_ORDER_FRAGMENTS = [
 // always computed against every OTHER active filter (search/playstyle/unreviewed) without
 // being narrowed by the user's own meter selection. Exported standalone (rather than a
 // private service method) so it's directly unit-testable without mocking Prisma.
-export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto): Prisma.Sql[] {
+export function buildBaseWhereFragments(
+  eventId: string,
+  userId: string,
+  query: ReviewsQueryDto,
+): Prisma.Sql[] {
   // Both queries below INNER JOIN charts, so submissions with no successfully parsed
   // chart (Meter/Title have nothing to show for them) are excluded implicitly. Ignored
-  // submissions are always excluded too - there's no UI control for surfacing them yet
-  // (removed along with ReviewsQueryDto.includeIgnored; see git history to reintroduce).
+  // submissions are always excluded too. Don't add a filter to surface them here: the import
+  // deletes an ignored submission's chart (import.service.ts), so the charts JOIN above
+  // guarantees such a filter matches nothing - use the Submissions or Orphaned Reviews tabs.
   const fragments: Prisma.Sql[] = [
     Prisma.sql`s."eventId" = ${eventId}`,
     Prisma.sql`c.playstyle = ${query.playstyle}::"Playstyle"`,
@@ -397,6 +403,19 @@ export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto)
 
   if (query.unreviewedOnly) {
     fragments.push(Prisma.sql`NOT EXISTS (SELECT 1 FROM reviews r WHERE r."chartHash" = c.hash)`);
+  }
+
+  // Deliberately by submissionId + reviewerId, NOT chart hash like unreviewedOnly above - it's
+  // the exact inverse of the rows query's hasOwnReview, so this filter hides precisely the rows
+  // showing the Edit (rather than Add) icon. A stale review of your own still counts as
+  // reviewed, since the edit modal would open that same review rather than start a new one.
+  if (query.unreviewedByMeOnly) {
+    fragments.push(Prisma.sql`
+      NOT EXISTS (
+        SELECT 1 FROM reviews r
+        WHERE r."submissionId" = s."fileId" AND r."reviewerId" = ${userId}
+      )
+    `);
   }
 
   if (query.publiclyReviewableOnly) {
@@ -423,6 +442,22 @@ export function buildBaseWhereFragments(eventId: string, query: ReviewsQueryDto)
   return fragments;
 }
 
+// Recomputed via MAX rather than stamped with now() - correct across multiple reviewers, no
+// special-casing needed for an idempotent resave (see CommentsService's recomputeLastCommentAt
+// for the same reasoning on the Comments side). Exported standalone (not a private service
+// method) so orphaned-reviews.service.ts's relink transaction can call it too, for both the
+// submission a review is moved off of and the one it's moved onto.
+export async function recomputeLastReviewAt(tx: Prisma.TransactionClient, fileId: string) {
+  const agg = await tx.review.aggregate({
+    where: { submissionId: fileId },
+    _max: { updatedAt: true },
+  });
+  await tx.submission.update({
+    where: { fileId },
+    data: { lastReviewAt: agg._max.updatedAt },
+  });
+}
+
 @Injectable()
 export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -433,7 +468,7 @@ export class ReviewsService {
     query: ReviewsQueryDto,
   ): Promise<ReviewsResponse> {
     const term = query.search?.trim() || null;
-    const baseFragments = buildBaseWhereFragments(eventId, query);
+    const baseFragments = buildBaseWhereFragments(eventId, userId, query);
     const baseWhere = Prisma.join(baseFragments, ' AND ');
 
     const bounds = await this.prisma.$queryRaw<
@@ -618,20 +653,6 @@ export class ReviewsService {
     return mapUpsertedReview(upserted);
   }
 
-  // Recomputed via MAX rather than stamped with now() - correct across multiple reviewers,
-  // no special-casing needed for the no-op-resave branch below (see CommentsService's
-  // recomputeLastCommentAt for the same reasoning on the Comments side).
-  private async recomputeLastReviewAt(tx: Prisma.TransactionClient, fileId: string) {
-    const agg = await tx.review.aggregate({
-      where: { submissionId: fileId },
-      _max: { updatedAt: true },
-    });
-    await tx.submission.update({
-      where: { fileId },
-      data: { lastReviewAt: agg._max.updatedAt },
-    });
-  }
-
   private upsertReviewTransaction(
     fileId: string,
     reviewerId: string,
@@ -700,7 +721,7 @@ export class ReviewsService {
             data: { ...chartSnapshot },
             include: reviewInclude,
           });
-          await this.recomputeLastReviewAt(tx, fileId);
+          await recomputeLastReviewAt(tx, fileId);
           return unchanged;
         }
 
@@ -762,7 +783,7 @@ export class ReviewsService {
           where: { id: existing.id },
           include: reviewInclude,
         });
-        await this.recomputeLastReviewAt(tx, fileId);
+        await recomputeLastReviewAt(tx, fileId);
         return updated;
       }
 
@@ -791,7 +812,7 @@ export class ReviewsService {
         where: { id: created.id },
         include: reviewInclude,
       });
-      await this.recomputeLastReviewAt(tx, fileId);
+      await recomputeLastReviewAt(tx, fileId);
       return result;
     });
   }

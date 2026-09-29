@@ -59,6 +59,7 @@ export type UserRecentReview = {
   }[];
   createdAt: Date;
   updatedAt: Date;
+  chartHash: string;
   isStale: boolean;
 };
 
@@ -392,6 +393,7 @@ export function mapUserRecentReview(review: ReviewWithRelationsForDetail): UserR
     })),
     createdAt: review.createdAt,
     updatedAt: review.updatedAt,
+    chartHash: review.chartHash,
     isStale: computeReviewIsStale(review.chartHash, currentChartHash),
   };
 }

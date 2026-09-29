@@ -152,7 +152,7 @@ function ReviewCard({ review, eventSlug }: { review: SubmissionDetailReview; eve
             {review.isStale && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant="destructive">Outdated hash</Badge>
+                  <Badge variant="destructive">Outdated hash: {review.chartHash}</Badge>
                 </TooltipTrigger>
                 <TooltipContent>
                   This review's recorded chart hash no longer matches the chart's current hash - the

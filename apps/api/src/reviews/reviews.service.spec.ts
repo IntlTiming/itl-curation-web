@@ -14,6 +14,7 @@ import {
 const BASE_QUERY: ReviewsQueryDto = {
   playstyle: Playstyle.SINGLE,
   unreviewedOnly: false,
+  unreviewedByMeOnly: false,
   publiclyReviewableOnly: false,
   techTags: [],
   focus: [],
@@ -25,7 +26,7 @@ function fragmentTexts(fragments: ReturnType<typeof buildBaseWhereFragments>): s
 
 describe('buildBaseWhereFragments', () => {
   it('always includes eventId, playstyle, and isIgnored=false fragments', () => {
-    const fragments = buildBaseWhereFragments('event-1', BASE_QUERY);
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', BASE_QUERY);
     const texts = fragmentTexts(fragments);
 
     expect(texts.some((t) => t.includes('"eventId"'))).toBe(true);
@@ -37,7 +38,10 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it('adds a NOT EXISTS fragment keyed on chart hash when unreviewedOnly is true', () => {
-    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, unreviewedOnly: true });
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
+      ...BASE_QUERY,
+      unreviewedOnly: true,
+    });
     const texts = fragmentTexts(fragments);
     const notExistsFragment = texts.find((t) => t.includes('NOT EXISTS'));
 
@@ -47,8 +51,23 @@ describe('buildBaseWhereFragments', () => {
     expect(notExistsFragment).not.toContain('fileId');
   });
 
+  it("adds a NOT EXISTS fragment keyed on the caller's own review of this submission when unreviewedByMeOnly is true", () => {
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
+      ...BASE_QUERY,
+      unreviewedByMeOnly: true,
+    });
+    const fragment = fragments.find((f) => f.text.includes('"reviewerId"'));
+
+    expect(fragment).toBeDefined();
+    expect(fragment!.text).toContain('NOT EXISTS');
+    expect(fragment!.text).toContain('"submissionId" = s."fileId"');
+    expect(fragment!.text).not.toContain('"chartHash"');
+    expect(fragment!.values).toEqual(['user-1']);
+    expect(fragments).toHaveLength(4);
+  });
+
   it('adds a consentToPublicReview=CONSENTS fragment when publiclyReviewableOnly is true', () => {
-    const fragments = buildBaseWhereFragments('event-1', {
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
       ...BASE_QUERY,
       publiclyReviewableOnly: true,
     });
@@ -61,7 +80,7 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it('adds an EXISTS tag-overlap fragment when techTags is non-empty', () => {
-    const fragments = buildBaseWhereFragments('event-1', {
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
       ...BASE_QUERY,
       techTags: ['BR', 'XO'],
     });
@@ -80,7 +99,7 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it('does not add a tag fragment when techTags is empty', () => {
-    const fragments = buildBaseWhereFragments('event-1', BASE_QUERY);
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', BASE_QUERY);
     const texts = fragmentTexts(fragments);
 
     expect(texts.some((t) => t.includes('submission_tech_tags'))).toBe(false);
@@ -88,7 +107,10 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it('adds an OR-joined similarity fragment across all 8 searched columns when a search term is present', () => {
-    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '  mirror  ' });
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
+      ...BASE_QUERY,
+      search: '  mirror  ',
+    });
     const texts = fragmentTexts(fragments);
     const similarityFragment = texts.find((t) => t.includes('similarity'));
 
@@ -103,7 +125,10 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it('does not add a search fragment for a blank/whitespace-only search term', () => {
-    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '   ' });
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
+      ...BASE_QUERY,
+      search: '   ',
+    });
     const texts = fragmentTexts(fragments);
 
     expect(texts.some((t) => t.includes('similarity'))).toBe(false);
@@ -113,7 +138,7 @@ describe('buildBaseWhereFragments', () => {
   // similarity() can't score a 1-2 character term meaningfully (see SHORT_SEARCH_TERM_LENGTH's
   // comment) - below that length the query falls back to a plain substring ILIKE instead.
   it('uses an OR-joined ILIKE fragment across all 8 searched columns for a 1-character term', () => {
-    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: 'a' });
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', { ...BASE_QUERY, search: 'a' });
     const texts = fragmentTexts(fragments);
     const likeFragment = texts.find((t) => t.includes('ILIKE'));
 
@@ -127,7 +152,10 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it('still uses similarity for a 3-character term (the ILIKE fallback only applies below that)', () => {
-    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: 'abc' });
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
+      ...BASE_QUERY,
+      search: 'abc',
+    });
     const texts = fragmentTexts(fragments);
 
     expect(texts.some((t) => t.includes('similarity'))).toBe(true);
@@ -135,7 +163,7 @@ describe('buildBaseWhereFragments', () => {
   });
 
   it("escapes the short term's own LIKE wildcard characters so they match literally", () => {
-    const fragments = buildBaseWhereFragments('event-1', { ...BASE_QUERY, search: '%_' });
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', { ...BASE_QUERY, search: '%_' });
     const values = fragments.flatMap((f) => f.values);
 
     expect(values).toContain('%\\%\\_%');

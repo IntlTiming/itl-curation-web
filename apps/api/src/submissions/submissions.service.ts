@@ -180,7 +180,7 @@ function toRevisionContent(row: {
 // already shown on the live review card in the Reviews column.
 export function buildReviewRevisionEntries(
   review: ReviewWithRelations & { revisions: ReviewRevisionRow[] },
-  currentChartHash: string,
+  currentChartHash: string | null,
 ): ReviewRevisionEntry[] {
   const reviewerSummary = {
     id: review.reviewer.id,
@@ -245,7 +245,7 @@ export function buildReviewRevisionEntries(
 export function mapReviewForDetail(
   review: ReviewWithRelations,
   currentFileId: string,
-  currentChartHash: string,
+  currentChartHash: string | null,
 ) {
   return {
     id: review.id,
@@ -269,6 +269,7 @@ export function mapReviewForDetail(
     })),
     createdAt: review.createdAt,
     updatedAt: review.updatedAt,
+    chartHash: review.chartHash,
     // review.chartHash != submission.chart?.hash - see prisma/schema.prisma's file header.
     isFromDifferentSubmission: review.submissionId !== currentFileId,
     isStale: review.chartHash !== currentChartHash,
@@ -290,9 +291,12 @@ export class SubmissionsService {
   }
 
   // Powers the submission details page: the submission+chart, every review that's either about
-  // THIS submission (including a stale one, whose chartHash no longer matches) or about another
-  // submission sharing the same current chart hash, and the same aggregate stats shown on the
-  // Reviews tab (scoped to the chart's current hash only).
+  // THIS submission (by fileId - including a stale one, whose chartHash no longer matches) or
+  // about another submission sharing the same current chart hash, and the same aggregate stats
+  // shown on the Reviews tab (scoped to the chart's current hash only). A submission that's been
+  // ignored (chart cleared, e.g. superseded by a resubmission) has no current chart hash to match
+  // against, but its own reviews by fileId still need to surface here rather than vanishing -
+  // that's the only case where the union degrades to fileId-only matching.
   async getForEvent(eventId: string, fileId: string) {
     const row = await this.prisma.submission.findUnique({
       where: { fileId },
@@ -304,12 +308,12 @@ export class SubmissionsService {
 
     const submission = mapSubmission(row);
     const chart = row.chart;
-    if (!chart) {
-      return { submission, reviews: [], reviewRevisions: [], stats: null };
-    }
+    const currentChartHash = chart?.hash ?? null;
 
     const reviewRows = await this.prisma.review.findMany({
-      where: { OR: [{ submissionId: fileId }, { chartHash: chart.hash }] },
+      where: chart
+        ? { OR: [{ submissionId: fileId }, { chartHash: chart.hash }] }
+        : { submissionId: fileId },
       include: {
         reviewer: true,
         basicCheckReasons: { include: { basicCheckReason: true } },
@@ -321,15 +325,23 @@ export class SubmissionsService {
       orderBy: { createdAt: 'asc' },
     });
 
-    const reviews = reviewRows.map((review) => mapReviewForDetail(review, fileId, chart.hash));
+    const reviews = reviewRows.map((review) =>
+      mapReviewForDetail(review, fileId, currentChartHash),
+    );
     const reviewRevisions = reviewRows.flatMap((review) =>
-      buildReviewRevisionEntries(review, chart.hash),
+      buildReviewRevisionEntries(review, currentChartHash),
     );
 
-    const [statsRow] = await this.prisma.$queryRaw<RawReviewStats[]>(
-      buildReviewStatsFragment(Prisma.sql`${chart.hash}`),
-    );
+    const stats = chart
+      ? mapReviewStats(
+          (
+            await this.prisma.$queryRaw<RawReviewStats[]>(
+              buildReviewStatsFragment(Prisma.sql`${chart.hash}`),
+            )
+          )[0],
+        )
+      : null;
 
-    return { submission, reviews, reviewRevisions, stats: mapReviewStats(statsRow) };
+    return { submission, reviews, reviewRevisions, stats };
   }
 }

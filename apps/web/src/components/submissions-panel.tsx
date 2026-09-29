@@ -1,6 +1,7 @@
 import { cn } from 'cn';
 import { ChevronRight } from 'lucide-react';
 import { Fragment, useId, useState } from 'react';
+import { Link } from 'react-router';
 import { ChartDetail } from '@/components/chart-detail';
 import { Loading } from '@/components/loading';
 import { SubmissionDetail } from '@/components/submission-detail';
@@ -138,11 +139,21 @@ export function SubmissionsPanel({ eventSlug }: { eventSlug: string }) {
                     <TableCell>{submission.submitter}</TableCell>
                     <TableCell>{submission.stepartist}</TableCell>
                     <TableCell>
-                      <ChartCell
-                        chart={submission.chart}
-                        submission={submission}
-                        pack={submission.pack}
-                      />
+                      {/* A real <Link> (not a row onClick) so cmd/middle-click and "Open in new
+                          tab" work; stopPropagation keeps a plain click from also toggling the
+                          row's expand before navigating away. */}
+                      <Link
+                        to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(submission.fileId)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="group"
+                      >
+                        <ChartCell
+                          chart={submission.chart}
+                          submission={submission}
+                          pack={submission.pack}
+                          textClassName="group-hover:underline"
+                        />
+                      </Link>
                     </TableCell>
                     <TableCell>
                       <CopyFileIdButton fileId={submission.fileId} />
