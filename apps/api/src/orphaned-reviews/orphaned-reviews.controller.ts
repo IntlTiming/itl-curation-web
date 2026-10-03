@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import type { Event, User } from '@prisma/client';
+import type { Event } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { EventAdminGuard } from '../events/event-admin.guard.js';
@@ -25,10 +25,10 @@ export class OrphanedReviewsController {
 
   @Post(':reviewId/relink')
   relink(
-    @Req() req: Request & { event: Event; user: User },
+    @Req() req: Request & { event: Event },
     @Param('reviewId') reviewId: string,
     @Body() dto: RelinkReviewDto,
   ) {
-    return this.orphanedReviews.relinkReview(req.event.id, reviewId, dto.targetFileId, req.user.id);
+    return this.orphanedReviews.relinkReview(req.event.id, reviewId, dto.targetFileId);
   }
 }
