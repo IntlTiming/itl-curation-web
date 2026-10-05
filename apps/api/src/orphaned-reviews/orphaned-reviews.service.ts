@@ -249,21 +249,18 @@ export class OrphanedReviewsService {
   }
 
   // Reassigns an orphaned review (one whose submission has been ignored) onto a live
-  // resubmission, re-snapshotting its chart identity to match - the same fields
-  // ReviewsService.upsertReviewTransaction re-stamps on every reviewer save. The pre-relink
-  // state is archived as a ReviewRevision first, so the old chart hash/identity stay visible in
-  // the comments/revision-history feed. supersededById is the CURATOR performing this, not the
-  // review's own author - the one case where that field isn't the reviewer themself.
-  async relinkReview(
-    eventId: string,
-    reviewId: string,
-    targetFileId: string,
-    curatorId: string,
-  ): Promise<void> {
+  // resubmission by moving ONLY its submissionId. The chart identity snapshot (chartHash and
+  // friends) is deliberately left alone: it's the record of which chart the reviewer actually
+  // rated, so if the resubmission changed the chart, the review surfaces as "Outdated hash" on
+  // its new submission (and stays out of the new chart's hash-scoped stats) until the reviewer
+  // re-saves it - at which point upsertReviewTransaction re-snapshots it as usual. If the hash
+  // didn't change, the review is simply current. updatedAt is pinned to its old value so the
+  // target's lastReviewAt reflects when the reviewer last reviewed, not when a curator relinked.
+  async relinkReview(eventId: string, reviewId: string, targetFileId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const review = await tx.review.findUnique({
         where: { id: reviewId },
-        include: { submission: true, basicCheckReasons: true },
+        include: { submission: true },
       });
       if (!review || review.submission.eventId !== eventId) {
         throw new NotFoundException(`No review with id "${reviewId}"`);
@@ -297,51 +294,9 @@ export class OrphanedReviewsService {
         );
       }
 
-      const revision = await tx.reviewRevision.create({
-        data: {
-          reviewId: review.id,
-          chartHash: review.chartHash,
-          chartTitle: review.chartTitle,
-          chartTitleRomaji: review.chartTitleRomaji,
-          chartSubtitle: review.chartSubtitle,
-          chartSubtitleRomaji: review.chartSubtitleRomaji,
-          chartArtist: review.chartArtist,
-          chartArtistRomaji: review.chartArtistRomaji,
-          chartPlaystyle: review.chartPlaystyle,
-          chartDifficulty: review.chartDifficulty,
-          chartMeter: review.chartMeter,
-          rating: review.rating,
-          passing: review.passing,
-          scoring: review.scoring,
-          notes: review.notes,
-          supersededById: curatorId,
-        },
-      });
-      if (review.basicCheckReasons.length > 0) {
-        await tx.reviewRevisionBasicCheck.createMany({
-          data: review.basicCheckReasons.map((check) => ({
-            reviewRevisionId: revision.id,
-            basicCheckReasonId: check.basicCheckReasonId,
-            note: check.note,
-          })),
-        });
-      }
-
       await tx.review.update({
         where: { id: review.id },
-        data: {
-          submissionId: targetFileId,
-          chartHash: target.chart.hash,
-          chartTitle: target.chart.title,
-          chartTitleRomaji: target.chart.titleRomaji,
-          chartSubtitle: target.chart.subtitle,
-          chartSubtitleRomaji: target.chart.subtitleRomaji,
-          chartArtist: target.chart.artist,
-          chartArtistRomaji: target.chart.artistRomaji,
-          chartPlaystyle: target.chart.playstyle,
-          chartDifficulty: target.chart.difficulty,
-          chartMeter: target.chart.meter,
-        },
+        data: { submissionId: targetFileId, updatedAt: review.updatedAt },
       });
 
       // review.submissionId still holds the OLD fileId here - `review` was fetched before the
