@@ -13,7 +13,6 @@ import {
 
 const BASE_QUERY: ReviewsQueryDto = {
   playstyle: Playstyle.SINGLE,
-  unreviewedOnly: false,
   unreviewedByMeOnly: false,
   publiclyReviewableOnly: false,
   techTags: [],
@@ -35,20 +34,6 @@ describe('buildBaseWhereFragments', () => {
     expect(texts.some((t) => t.includes('NOT EXISTS'))).toBe(false);
     expect(texts.some((t) => t.includes('similarity'))).toBe(false);
     expect(fragments).toHaveLength(3);
-  });
-
-  it('adds a NOT EXISTS fragment keyed on chart hash when unreviewedOnly is true', () => {
-    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
-      ...BASE_QUERY,
-      unreviewedOnly: true,
-    });
-    const texts = fragmentTexts(fragments);
-    const notExistsFragment = texts.find((t) => t.includes('NOT EXISTS'));
-
-    expect(notExistsFragment).toBeDefined();
-    expect(notExistsFragment).toContain('"chartHash"');
-    expect(notExistsFragment).toContain('c.hash');
-    expect(notExistsFragment).not.toContain('fileId');
   });
 
   it("adds a NOT EXISTS fragment keyed on the caller's own review of this submission when unreviewedByMeOnly is true", () => {

@@ -6,7 +6,9 @@ export type ReviewsFilters = {
   playstyle: 'SINGLE' | 'DOUBLE';
   minMeter: number | null;
   maxMeter: number | null;
-  unreviewedOnly: boolean;
+  // Either end null = unbounded on that side.
+  minReviewCount: number | null;
+  maxReviewCount: number | null;
   unreviewedByMeOnly: boolean;
   publiclyReviewableOnly: boolean;
   // TechTag.code values (e.g. "BR", "XO") - a submission needs at least one to show up at all;
@@ -23,7 +25,8 @@ const DEFAULT_FILTERS: ReviewsFilters = {
   playstyle: 'SINGLE',
   minMeter: null,
   maxMeter: null,
-  unreviewedOnly: false,
+  minReviewCount: null,
+  maxReviewCount: null,
   unreviewedByMeOnly: false,
   publiclyReviewableOnly: false,
   techTags: [],
@@ -39,7 +42,8 @@ export const FILTER_PARAM_KEYS = [
   'playstyle',
   'minMeter',
   'maxMeter',
-  'unreviewedOnly',
+  'minReviewCount',
+  'maxReviewCount',
   'unreviewedByMeOnly',
   'publiclyReviewableOnly',
   'techTags',
@@ -61,7 +65,12 @@ function parseFromParams(params: URLSearchParams): ReviewsFilters {
     playstyle: params.get('playstyle') === 'DOUBLE' ? 'DOUBLE' : 'SINGLE',
     minMeter: params.has('minMeter') ? Number(params.get('minMeter')) : DEFAULT_FILTERS.minMeter,
     maxMeter: params.has('maxMeter') ? Number(params.get('maxMeter')) : DEFAULT_FILTERS.maxMeter,
-    unreviewedOnly: params.get('unreviewedOnly') === 'true',
+    minReviewCount: params.has('minReviewCount')
+      ? Number(params.get('minReviewCount'))
+      : DEFAULT_FILTERS.minReviewCount,
+    maxReviewCount: params.has('maxReviewCount')
+      ? Number(params.get('maxReviewCount'))
+      : DEFAULT_FILTERS.maxReviewCount,
     unreviewedByMeOnly: params.get('unreviewedByMeOnly') === 'true',
     publiclyReviewableOnly: params.get('publiclyReviewableOnly') === 'true',
     techTags: params.has('techTags')
@@ -101,7 +110,16 @@ function writeToParams(filters: ReviewsFilters, params: URLSearchParams): URLSea
   setOrDelete('playstyle', filters.playstyle, filters.playstyle === DEFAULT_FILTERS.playstyle);
   setOrDelete('minMeter', String(filters.minMeter), filters.minMeter === DEFAULT_FILTERS.minMeter);
   setOrDelete('maxMeter', String(filters.maxMeter), filters.maxMeter === DEFAULT_FILTERS.maxMeter);
-  setOrDelete('unreviewedOnly', 'true', !filters.unreviewedOnly);
+  setOrDelete(
+    'minReviewCount',
+    String(filters.minReviewCount),
+    filters.minReviewCount === DEFAULT_FILTERS.minReviewCount,
+  );
+  setOrDelete(
+    'maxReviewCount',
+    String(filters.maxReviewCount),
+    filters.maxReviewCount === DEFAULT_FILTERS.maxReviewCount,
+  );
   setOrDelete('unreviewedByMeOnly', 'true', !filters.unreviewedByMeOnly);
   setOrDelete('publiclyReviewableOnly', 'true', !filters.publiclyReviewableOnly);
   setOrDelete('techTags', filters.techTags.join(','), filters.techTags.length === 0);

@@ -401,11 +401,7 @@ export function buildBaseWhereFragments(
     Prisma.sql`s."isIgnored" = false`,
   ];
 
-  if (query.unreviewedOnly) {
-    fragments.push(Prisma.sql`NOT EXISTS (SELECT 1 FROM reviews r WHERE r."chartHash" = c.hash)`);
-  }
-
-  // Deliberately by submissionId + reviewerId, NOT chart hash like unreviewedOnly above - it's
+  // Deliberately by submissionId + reviewerId, NOT chart hash like the review count range - it's
   // the exact inverse of the rows query's hasOwnReview, so this filter hides precisely the rows
   // showing the Edit (rather than Add) icon. A stale review of your own still counts as
   // reviewed, since the edit modal would open that same review rather than start a new one.
@@ -501,6 +497,13 @@ export class ReviewsService {
     }
     if (query.focus.length > 0) {
       rowFragments.push(Prisma.sql`s.focus IN (${Prisma.join(query.focus)})`);
+    }
+    // review_stats is the main row query's LATERAL join below - rowsWhere is only used there.
+    if (query.minReviewCount !== undefined) {
+      rowFragments.push(Prisma.sql`review_stats.review_count >= ${query.minReviewCount}`);
+    }
+    if (query.maxReviewCount !== undefined) {
+      rowFragments.push(Prisma.sql`review_stats.review_count <= ${query.maxReviewCount}`);
     }
     const rowsWhere = Prisma.join(rowFragments, ' AND ');
 

@@ -85,7 +85,8 @@ function buildQueryString(filters: ReviewsFilters): string {
   params.set('playstyle', filters.playstyle);
   if (filters.minMeter != null) params.set('minMeter', String(filters.minMeter));
   if (filters.maxMeter != null) params.set('maxMeter', String(filters.maxMeter));
-  if (filters.unreviewedOnly) params.set('unreviewedOnly', 'true');
+  if (filters.minReviewCount != null) params.set('minReviewCount', String(filters.minReviewCount));
+  if (filters.maxReviewCount != null) params.set('maxReviewCount', String(filters.maxReviewCount));
   if (filters.unreviewedByMeOnly) params.set('unreviewedByMeOnly', 'true');
   if (filters.publiclyReviewableOnly) params.set('publiclyReviewableOnly', 'true');
   if (filters.techTags.length > 0) params.set('techTags', filters.techTags.join(','));

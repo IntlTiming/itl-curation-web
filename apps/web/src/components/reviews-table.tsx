@@ -197,28 +197,57 @@ function compareByColumn(a: ReviewsRow, b: ReviewsRow, column: SortColumn): numb
       return a.submitter.localeCompare(b.submitter);
     case 'reviewCount':
       return a.reviewCount - b.reviewCount;
+    // Missing values never reach here - applySort pulls them out first (see NULLS_LAST_COLUMNS).
     case 'avgRating':
-      return (a.avgRating ?? -Infinity) - (b.avgRating ?? -Infinity);
     case 'minRating':
-      return (a.minRating ?? -Infinity) - (b.minRating ?? -Infinity);
     case 'maxRating':
-      return (a.maxRating ?? -Infinity) - (b.maxRating ?? -Infinity);
     case 'stdevRating':
-      return (a.stdevRating ?? -Infinity) - (b.stdevRating ?? -Infinity);
+      return a[column]! - b[column]!;
     case 'commentCount':
       return a.commentCount - b.commentCount;
     case 'lastActivity':
-      return (
-        (a.lastActivity ? Date.parse(a.lastActivity) : -Infinity) -
-        (b.lastActivity ? Date.parse(b.lastActivity) : -Infinity)
-      );
+      return Date.parse(a.lastActivity!) - Date.parse(b.lastActivity!);
   }
 }
 
+// Rating columns are null for a chart with no ratings yet, and lastActivity for one with no
+// reviews or comments. Those rows always sink to the bottom, in both directions - "no data" isn't
+// the lowest or highest value, so it shouldn't flip to the top when the sort reverses.
+const NULLS_LAST_COLUMNS = new Set<SortColumn>([
+  'avgRating',
+  'minRating',
+  'maxRating',
+  'stdevRating',
+  'lastActivity',
+]);
+
+// Ties on a rating column fall back to review count, most-reviewed first in both directions - a
+// rating backed by more reviews is the more meaningful one to see first.
+const REVIEW_COUNT_TIEBREAK_COLUMNS = new Set<SortColumn>([
+  'avgRating',
+  'minRating',
+  'maxRating',
+  'stdevRating',
+]);
+
 function applySort(rows: ReviewsRow[], sort: SortState): ReviewsRow[] {
   if (!sort) return rows;
+  const { column } = sort;
   const direction = sort.direction === 'asc' ? 1 : -1;
-  return [...rows].sort((a, b) => direction * compareByColumn(a, b, sort.column));
+  return [...rows].sort((a, b) => {
+    const primary = comparePrimary(a, b);
+    if (primary !== 0 || !REVIEW_COUNT_TIEBREAK_COLUMNS.has(column)) return primary;
+    return b.reviewCount - a.reviewCount;
+  });
+
+  function comparePrimary(a: ReviewsRow, b: ReviewsRow): number {
+    if (NULLS_LAST_COLUMNS.has(column)) {
+      const aMissing = a[column as keyof ReviewsRow] === null;
+      const bMissing = b[column as keyof ReviewsRow] === null;
+      if (aMissing || bMissing) return Number(aMissing) - Number(bMissing);
+    }
+    return direction * compareByColumn(a, b, column);
+  }
 }
 
 // Cancel-style icon shown inline after the title whenever a chart's timing changes are
