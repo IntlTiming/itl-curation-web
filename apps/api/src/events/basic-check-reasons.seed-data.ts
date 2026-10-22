@@ -48,4 +48,10 @@ export const BASIC_CHECK_REASON_SEED_DATA: {
     level: 'WARNING',
     description: 'Song contains language that may be considered explicit.',
   },
+  {
+    code: 'REVISION_REQUESTED',
+    label: 'Revision requested',
+    level: 'WARNING',
+    description: 'Reviewer requested changes before approval',
+  },
 ];
