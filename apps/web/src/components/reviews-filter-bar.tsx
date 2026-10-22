@@ -52,6 +52,88 @@ function sortFocusOptions(options: string[]): string[] {
 
 const SEARCH_DEBOUNCE_MS = 350;
 const METER_COMMIT_DEBOUNCE_MS = 350;
+const REVIEW_COUNT_COMMIT_DEBOUNCE_MS = 350;
+
+// Min/max review count inputs. Unlike Meter there are no server-supplied bounds or slider - each
+// end is open-ended (blank = no limit), since "at least N reviews" or "at most N" alone is the
+// common ask. Local draft state is committed on a debounce, same reasoning as the Meter fields'
+// debouncedCommitMeterRange (arrow keys / wheel ticks commit on every step).
+function ReviewCountRange({
+  min,
+  max,
+  onCommit,
+}: {
+  min: number | null;
+  max: number | null;
+  onCommit: (range: { minReviewCount: number | null; maxReviewCount: number | null }) => void;
+}) {
+  const [localRange, setLocalRange] = useState<[number | null, number | null]>([min, max]);
+
+  // Resyncs local draft state whenever the committed filters change (e.g. Reset filters).
+  useEffect(() => {
+    setLocalRange([min, max]);
+  }, [min, max]);
+
+  const commitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (commitTimeoutRef.current) clearTimeout(commitTimeoutRef.current);
+    };
+  }, []);
+  function debouncedCommit([nextMin, nextMax]: [number | null, number | null]) {
+    if (commitTimeoutRef.current) clearTimeout(commitTimeoutRef.current);
+    commitTimeoutRef.current = setTimeout(
+      () => onCommit({ minReviewCount: nextMin, maxReviewCount: nextMax }),
+      REVIEW_COUNT_COMMIT_DEBOUNCE_MS,
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <NumberField
+        value={localRange[0]}
+        min={0}
+        max={localRange[1] ?? undefined}
+        onValueChange={(value) => setLocalRange([value, localRange[1]])}
+        onValueCommitted={(value) => debouncedCommit([value, localRange[1]])}
+        className="w-28"
+      >
+        <NumberFieldGroup>
+          <NumberFieldDecrement
+            className={cn((localRange[0] === null || localRange[0] <= 0) && 'invisible')}
+          />
+          <NumberFieldInput placeholder="Min" aria-label="Minimum review count" />
+          <NumberFieldIncrement
+            className={cn(
+              localRange[0] !== null &&
+                localRange[1] !== null &&
+                localRange[0] >= localRange[1] &&
+                'invisible',
+            )}
+          />
+        </NumberFieldGroup>
+      </NumberField>
+      <span className="text-muted-foreground text-sm">to</span>
+      <NumberField
+        value={localRange[1]}
+        min={localRange[0] ?? 0}
+        onValueChange={(value) => setLocalRange([localRange[0], value])}
+        onValueCommitted={(value) => debouncedCommit([localRange[0], value])}
+        className="w-28"
+      >
+        <NumberFieldGroup>
+          <NumberFieldDecrement
+            className={cn(
+              (localRange[1] === null || localRange[1] <= (localRange[0] ?? 0)) && 'invisible',
+            )}
+          />
+          <NumberFieldInput placeholder="Max" aria-label="Maximum review count" />
+          <NumberFieldIncrement />
+        </NumberFieldGroup>
+      </NumberField>
+    </div>
+  );
+}
 
 export function ReviewsFilterBar({
   filters,
@@ -87,7 +169,6 @@ export function ReviewsFilterBar({
   const searchId = useId();
   const singleId = useId();
   const doubleId = useId();
-  const unreviewedId = useId();
   const unreviewedByMeId = useId();
   const publiclyReviewableId = useId();
 
@@ -247,6 +328,15 @@ export function ReviewsFilterBar({
         </div>
 
         <div className="grid gap-2">
+          <Label>Reviews</Label>
+          <ReviewCountRange
+            min={filters.minReviewCount}
+            max={filters.maxReviewCount}
+            onCommit={onFiltersChange}
+          />
+        </div>
+
+        <div className="grid gap-2">
           <Label>Tech Tags</Label>
           <Popover>
             <PopoverTrigger asChild>
@@ -380,23 +470,9 @@ export function ReviewsFilterBar({
           </Popover>
         </div>
 
-        {/* Unreviewed and Reset filters have no label of their own, but still get an invisible
-          one matching the others' - every column here is (label row + gap-2 + h-8 control row),
-          so items-end lines up the actual controls, not just each column's outer box. */}
-        <div className="grid gap-2">
-          <Label aria-hidden className="invisible">
-            Unreviewed
-          </Label>
-          <div className="flex h-8 items-center gap-2">
-            <Checkbox
-              id={unreviewedId}
-              checked={filters.unreviewedOnly}
-              onCheckedChange={(checked) => onFiltersChange({ unreviewedOnly: checked === true })}
-            />
-            <Label htmlFor={unreviewedId}>Unreviewed</Label>
-          </div>
-        </div>
-
+        {/* Reset has no label of its own, but still gets an invisible one matching the others' -
+          every column here is (label row + gap-2 + h-8 control row), so items-end lines up the
+          actual controls, not just each column's outer box. */}
         <div className="grid gap-2">
           <Label aria-hidden className="invisible">
             Reset

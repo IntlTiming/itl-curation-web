@@ -46,13 +46,21 @@ export class ReviewsQueryDto {
   @Min(0)
   maxMeter?: number;
 
+  // Chart-hash scoped, same as the Reviews column's own count (see buildReviewStatsFragment).
   @IsOptional()
-  @Transform(toBoolean)
-  @IsBoolean()
-  unreviewedOnly: boolean = false;
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minReviewCount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxReviewCount?: number;
 
   // Scoped to the calling user - see buildBaseWhereFragments for why it's by submission, not
-  // chart hash like unreviewedOnly.
+  // chart hash like the review count range above.
   @IsOptional()
   @Transform(toBoolean)
   @IsBoolean()
