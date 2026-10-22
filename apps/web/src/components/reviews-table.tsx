@@ -221,18 +221,33 @@ const NULLS_LAST_COLUMNS = new Set<SortColumn>([
   'lastActivity',
 ]);
 
+// Ties on a rating column fall back to review count, most-reviewed first in both directions - a
+// rating backed by more reviews is the more meaningful one to see first.
+const REVIEW_COUNT_TIEBREAK_COLUMNS = new Set<SortColumn>([
+  'avgRating',
+  'minRating',
+  'maxRating',
+  'stdevRating',
+]);
+
 function applySort(rows: ReviewsRow[], sort: SortState): ReviewsRow[] {
   if (!sort) return rows;
   const { column } = sort;
   const direction = sort.direction === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
+    const primary = comparePrimary(a, b);
+    if (primary !== 0 || !REVIEW_COUNT_TIEBREAK_COLUMNS.has(column)) return primary;
+    return b.reviewCount - a.reviewCount;
+  });
+
+  function comparePrimary(a: ReviewsRow, b: ReviewsRow): number {
     if (NULLS_LAST_COLUMNS.has(column)) {
       const aMissing = a[column as keyof ReviewsRow] === null;
       const bMissing = b[column as keyof ReviewsRow] === null;
       if (aMissing || bMissing) return Number(aMissing) - Number(bMissing);
     }
     return direction * compareByColumn(a, b, column);
-  });
+  }
 }
 
 // Cancel-style icon shown inline after the title whenever a chart's timing changes are
