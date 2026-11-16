@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { ImportPanel } from '@/components/import-panel';
 import { Loading } from '@/components/loading';
-import { OrphanedReviewsPanel } from '@/components/orphaned-reviews-panel';
+import { BrokenReviewsPanel } from '@/components/broken-reviews-panel';
 import { OverviewPanel } from '@/components/overview-panel';
 import { ReviewersPanel } from '@/components/reviewers-panel';
 import { ReviewsPanel } from '@/components/reviews-panel';
@@ -48,7 +48,7 @@ const TAB_LABELS: Record<string, string> = {
   suggestions: 'Suggestions',
   submitters: 'Submitters',
   import: 'Import',
-  'orphaned-reviews': 'Orphaned Reviews',
+  'broken-reviews': 'Broken Reviews',
   settings: 'Settings',
 };
 
@@ -135,7 +135,7 @@ export function EventDetail() {
 
   const requestedTab = searchParams.get('tab') ?? DEFAULT_TAB;
   const isAdminOnlyTab =
-    requestedTab === 'import' || requestedTab === 'orphaned-reviews' || requestedTab === 'settings';
+    requestedTab === 'import' || requestedTab === 'broken-reviews' || requestedTab === 'settings';
   const tab =
     isAdminOnlyTab && !(result.status === 'loaded' && result.event.isEventAdmin)
       ? DEFAULT_TAB
@@ -231,9 +231,9 @@ export function EventDetail() {
           </TabsTrigger>
         )}
         {event.isEventAdmin && (
-          <TabsTrigger value="orphaned-reviews">
+          <TabsTrigger value="broken-reviews">
             <Unlink />
-            Orphaned Reviews
+            Broken Reviews
           </TabsTrigger>
         )}
         {event.isEventAdmin && (
@@ -267,8 +267,8 @@ export function EventDetail() {
         </TabsContent>
       )}
       {event.isEventAdmin && (
-        <TabsContent value="orphaned-reviews">
-          <OrphanedReviewsPanel eventSlug={event.slug} />
+        <TabsContent value="broken-reviews">
+          <BrokenReviewsPanel eventSlug={event.slug} />
         </TabsContent>
       )}
       {event.isEventAdmin && (

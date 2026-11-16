@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { CommentsPanel } from '@/components/comments-panel';
 import { Loading } from '@/components/loading';
-import { CandidateRow } from '@/components/orphaned-reviews-panel';
+import { CandidateRow } from '@/components/broken-reviews-panel';
 import { RatingCell, StdevCell } from '@/components/reviews-table';
 import { ReviewCard } from '@/components/submission-detail-page';
 import { SuggestionReviewModal, SuggestionSummary } from '@/components/suggestion-review-modal';
@@ -43,7 +43,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 type LinkResult = { copied: number; skipped: { id: string; displayName: string }[] };
 
 // Search -> pick -> confirm -> result. The admin-only search endpoint returns the same candidate
-// shape as the Orphaned Reviews relink picker, so its row component is reused as-is.
+// shape as the Broken Reviews tab's relink picker, so its row component is reused as-is.
 function LinkToSubmissionDialog({
   eventSlug,
   position,

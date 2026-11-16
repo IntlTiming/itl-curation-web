@@ -24,8 +24,11 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   useOrphanedReviews,
+  useOutdatedReviews,
+  type OrphanedReview,
   type OrphanedReviewCandidate,
   type OrphanedReviewGroup,
+  type OutdatedReviewGroup,
 } from '@/hooks/use-orphaned-reviews';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
@@ -169,6 +172,59 @@ function RelinkPicker({
   );
 }
 
+// Reviewer, snapshotted chart identity, scores and hash for one review - shared by the
+// Orphaned and Outdated sections of the Broken Reviews tab.
+function ReviewSummary({ review }: { review: OrphanedReview }) {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <Avatar className="size-6">
+          <AvatarImage src={discordAvatarUrl(review.reviewer)} alt={review.reviewer.displayName} />
+          <AvatarFallback className="text-[10px]">
+            {review.reviewer.displayName.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm font-medium">{review.reviewer.displayName}</span>
+        <DifficultyBadge
+          label={chartBadgeLabel(review.chart)}
+          difficulty={review.chart.difficulty}
+          size="small"
+        />
+        <span className="text-muted-foreground truncate text-xs">
+          <DisplayTitle native={review.chart.title} romaji={review.chart.titleRomaji} />
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 pl-8 text-xs">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Rating:</span>
+          <RatingCell value={review.rating} />
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Passing:</span>
+          {review.passing == null ? (
+            '—'
+          ) : (
+            <GradientBadge value={review.passing} {...PASSING_GRADIENT}>
+              {review.passing}
+            </GradientBadge>
+          )}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Scoring:</span>
+          {review.scoring == null ? (
+            '—'
+          ) : (
+            <GradientBadge value={review.scoring} {...SCORING_GRADIENT}>
+              {review.scoring}
+            </GradientBadge>
+          )}
+        </span>
+        <span className="text-muted-foreground">chartHash: {review.chartHash}</span>
+      </div>
+    </>
+  );
+}
+
 function OrphanedReviewGroupCard({
   eventSlug,
   group,
@@ -293,53 +349,7 @@ function OrphanedReviewGroupCard({
               className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <Avatar className="size-6">
-                    <AvatarImage
-                      src={discordAvatarUrl(review.reviewer)}
-                      alt={review.reviewer.displayName}
-                    />
-                    <AvatarFallback className="text-[10px]">
-                      {review.reviewer.displayName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium">{review.reviewer.displayName}</span>
-                  <DifficultyBadge
-                    label={chartBadgeLabel(review.chart)}
-                    difficulty={review.chart.difficulty}
-                    size="small"
-                  />
-                  <span className="text-muted-foreground truncate text-xs">
-                    <DisplayTitle native={review.chart.title} romaji={review.chart.titleRomaji} />
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 pl-8 text-xs">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-muted-foreground">Rating:</span>
-                    <RatingCell value={review.rating} />
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-muted-foreground">Passing:</span>
-                    {review.passing == null ? (
-                      '—'
-                    ) : (
-                      <GradientBadge value={review.passing} {...PASSING_GRADIENT}>
-                        {review.passing}
-                      </GradientBadge>
-                    )}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-muted-foreground">Scoring:</span>
-                    {review.scoring == null ? (
-                      '—'
-                    ) : (
-                      <GradientBadge value={review.scoring} {...SCORING_GRADIENT}>
-                        {review.scoring}
-                      </GradientBadge>
-                    )}
-                  </span>
-                  <span className="text-muted-foreground">chartHash: {review.chartHash}</span>
-                </div>
+                <ReviewSummary review={review} />
                 {rowError[review.id] && (
                   <p className="text-destructive pl-8 text-xs">{rowError[review.id]}</p>
                 )}
@@ -406,55 +416,118 @@ function OrphanedReviewGroupCard({
   );
 }
 
-export function OrphanedReviewsPanel({ eventSlug }: { eventSlug: string }) {
+function OrphanedReviewsSection({ eventSlug }: { eventSlug: string }) {
   const orphaned = useOrphanedReviews(eventSlug);
   const { relink, searchCandidates } = orphaned;
 
+  let body: React.ReactNode;
   if (orphaned.status === 'loading') {
-    return <Loading message="Loading orphaned reviews…" />;
-  }
-
-  if (orphaned.status === 'error') {
-    return (
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>Couldn't load orphaned reviews</CardTitle>
-          <CardDescription>Try refreshing.</CardDescription>
-        </CardHeader>
-      </Card>
+    body = <Loading message="Loading orphaned reviews…" />;
+  } else if (orphaned.status === 'error') {
+    body = (
+      <p className="text-destructive text-sm">Couldn't load orphaned reviews. Try refreshing.</p>
     );
-  }
-
-  const { groups } = orphaned;
-  if (groups.length === 0) {
-    return (
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>No orphaned reviews</CardTitle>
-          <CardDescription>
-            Every review is attached to a live submission - nothing to reconcile right now.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+  } else if (orphaned.groups.length === 0) {
+    body = (
+      <p className="text-muted-foreground text-sm">
+        Every review is attached to a live submission - nothing to reconcile right now.
+      </p>
     );
+  } else {
+    body = orphaned.groups.map((group) => (
+      <OrphanedReviewGroupCard
+        key={group.submission.fileId}
+        eventSlug={eventSlug}
+        group={group}
+        onRelink={relink}
+        searchCandidates={searchCandidates}
+      />
+    ));
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+    <section className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold">Orphaned reviews</h2>
+      {body}
+    </section>
+  );
+}
+
+function OutdatedReviewGroupCard({
+  eventSlug,
+  group,
+}: {
+  eventSlug: string;
+  group: OutdatedReviewGroup;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          {group.submission.stepartist}
+          <span className="text-muted-foreground font-normal">
+            {group.reviews.length} outdated review{group.reviews.length === 1 ? '' : 's'}
+          </span>
+        </CardTitle>
+        <CardDescription>
+          {group.submission.pack} • submitted by {group.submission.submitter} on{' '}
+          {format(new Date(group.submission.submittedAt), 'PP')} • submission{' '}
+          <Link
+            to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(group.submission.fileId)}`}
+            className="text-primary hover:underline"
+          >
+            {group.submission.fileId}
+          </Link>
+          <br />
+          Current chartHash: {group.submission.currentChartHash}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {group.reviews.map((review) => (
+          <div key={review.id} className="flex flex-col gap-1 rounded-md border p-3">
+            <ReviewSummary review={review} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OutdatedReviewsSection({ eventSlug }: { eventSlug: string }) {
+  const outdated = useOutdatedReviews(eventSlug);
+
+  let body: React.ReactNode;
+  if (outdated.status === 'loading') {
+    body = <Loading message="Loading outdated reviews…" />;
+  } else if (outdated.status === 'error') {
+    body = (
+      <p className="text-destructive text-sm">Couldn't load outdated reviews. Try refreshing.</p>
+    );
+  } else if (outdated.groups.length === 0) {
+    body = (
       <p className="text-muted-foreground text-sm">
-        These reviews belong to submissions that were later ignored - usually because the submitter
-        sent a resubmission that superseded them. Relink each one to the chart's live submission so
-        it counts toward that chart's reviews again.
+        Every review on a live submission matches its chart's current hash.
       </p>
-      {groups.map((group) => (
-        <OrphanedReviewGroupCard
-          key={group.submission.fileId}
-          eventSlug={eventSlug}
-          group={group}
-          onRelink={relink}
-          searchCandidates={searchCandidates}
-        />
-      ))}
+    );
+  } else {
+    body = outdated.groups.map((group) => (
+      <OutdatedReviewGroupCard key={group.submission.fileId} eventSlug={eventSlug} group={group} />
+    ));
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold">Outdated reviews</h2>
+      {body}
+    </section>
+  );
+}
+
+export function BrokenReviewsPanel({ eventSlug }: { eventSlug: string }) {
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+      <OrphanedReviewsSection eventSlug={eventSlug} />
+      <OutdatedReviewsSection eventSlug={eventSlug} />
     </div>
   );
 }
