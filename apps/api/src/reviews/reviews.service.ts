@@ -79,6 +79,7 @@ type RawReviewRow = {
   maxRating: number | null;
   stdevRating: number | null;
   hasOwnReview: boolean;
+  hasOwnChartReview: boolean;
   commentCount: bigint;
   lastActivity: Date | null;
   // TechTag.label values (not codes - shortened to codes for display client-side, same as
@@ -132,6 +133,13 @@ export type ReviewsRow = {
   // chart hash - matches the Review@@unique([submissionId, reviewerId]) scope the edit modal's
   // upsert endpoint operates on), so the Add/Edit icon can distinguish the two states.
   hasOwnReview: boolean;
+  // Whether the CURRENT user has reviewed this chart at all - their review of this exact
+  // submission (so a stale review still counts, same as hasOwnReview) OR a review of any other
+  // submission carrying the same chart hash (a duplicate submission, which shares
+  // reviewCount/avgRating/etc. with this one). Drives the "Only unreviewed by me" filter and
+  // the Random!! button, so a duplicate of a chart you already reviewed isn't offered as
+  // unreviewed. A superset of hasOwnReview.
+  hasOwnChartReview: boolean;
   // Both of the following are submissionId-scoped, NOT chart-hash matched like every field
   // above them - deliberately different from reviewCount/avgRating/etc. See Comment's schema
   // comment and the file header's chart-identity note for why comments never cross-match.
@@ -192,6 +200,7 @@ export function mapRawReviewRow(row: RawReviewRow, basicChecks: ReviewsBasicChec
     maxRating: row.maxRating == null ? null : row.maxRating / 100,
     stdevRating: row.stdevRating == null ? null : row.stdevRating / 100,
     hasOwnReview: row.hasOwnReview,
+    hasOwnChartReview: row.hasOwnChartReview,
     commentCount: Number(row.commentCount),
     lastActivity: row.lastActivity,
     basicChecks,
@@ -401,15 +410,17 @@ export function buildBaseWhereFragments(
     Prisma.sql`s."isIgnored" = false`,
   ];
 
-  // Deliberately by submissionId + reviewerId, NOT chart hash like the review count range - it's
-  // the exact inverse of the rows query's hasOwnReview, so this filter hides precisely the rows
-  // showing the Edit (rather than Add) icon. A stale review of your own still counts as
-  // reviewed, since the edit modal would open that same review rather than start a new one.
+  // The exact inverse of the rows query's hasOwnChartReview: hides a submission when you've
+  // reviewed it directly (by submissionId, so a stale review of your own still counts) OR
+  // reviewed a duplicate submission of the same chart (by chart hash, the same scope as the
+  // review count range). Without the hash match, a duplicate of a chart you already reviewed
+  // would show up as "unreviewed" despite its review count including your own review.
   if (query.unreviewedByMeOnly) {
     fragments.push(Prisma.sql`
       NOT EXISTS (
         SELECT 1 FROM reviews r
-        WHERE r."submissionId" = s."fileId" AND r."reviewerId" = ${userId}
+        WHERE r."reviewerId" = ${userId}
+          AND (r."submissionId" = s."fileId" OR r."chartHash" = c.hash)
       )
     `);
   }
@@ -560,6 +571,11 @@ export class ReviewsService {
             SELECT 1 FROM reviews r2
             WHERE r2."submissionId" = s."fileId" AND r2."reviewerId" = ${userId}
           )                                AS "hasOwnReview",
+          EXISTS (
+            SELECT 1 FROM reviews r3
+            WHERE r3."reviewerId" = ${userId}
+              AND (r3."submissionId" = s."fileId" OR r3."chartHash" = c.hash)
+          )                                AS "hasOwnChartReview",
           (SELECT COUNT(*) FROM comments cm WHERE cm."submissionId" = s."fileId")
                                            AS "commentCount",
           GREATEST(s."lastReviewAt", s."lastCommentAt") AS "lastActivity",

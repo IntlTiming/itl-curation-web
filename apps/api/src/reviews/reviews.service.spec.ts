@@ -36,7 +36,7 @@ describe('buildBaseWhereFragments', () => {
     expect(fragments).toHaveLength(3);
   });
 
-  it("adds a NOT EXISTS fragment keyed on the caller's own review of this submission when unreviewedByMeOnly is true", () => {
+  it("adds a NOT EXISTS fragment keyed on the caller's own review of this submission or of a duplicate with the same chart hash when unreviewedByMeOnly is true", () => {
     const fragments = buildBaseWhereFragments('event-1', 'user-1', {
       ...BASE_QUERY,
       unreviewedByMeOnly: true,
@@ -46,7 +46,7 @@ describe('buildBaseWhereFragments', () => {
     expect(fragment).toBeDefined();
     expect(fragment!.text).toContain('NOT EXISTS');
     expect(fragment!.text).toContain('"submissionId" = s."fileId"');
-    expect(fragment!.text).not.toContain('"chartHash"');
+    expect(fragment!.text).toContain('"chartHash" = c.hash');
     expect(fragment!.values).toEqual(['user-1']);
     expect(fragments).toHaveLength(4);
   });
@@ -235,6 +235,7 @@ describe('mapRawReviewRow', () => {
         maxRating: 200,
         stdevRating: 25.0,
         hasOwnReview: true,
+        hasOwnChartReview: true,
         commentCount: 2n,
         lastActivity: new Date('2026-02-01T00:00:00Z'),
       },
@@ -269,6 +270,7 @@ describe('mapRawReviewRow', () => {
       maxRating: 2,
       stdevRating: 0.25,
       hasOwnReview: true,
+      hasOwnChartReview: true,
       commentCount: 2,
       lastActivity: new Date('2026-02-01T00:00:00Z'),
       basicChecks: [{ id: 'bcr-1', code: 'BEAT_0', label: 'Beat 0', level: 'WARNING' }],
@@ -308,6 +310,7 @@ describe('mapRawReviewRow', () => {
         maxRating: null,
         stdevRating: null,
         hasOwnReview: false,
+        hasOwnChartReview: true,
         commentCount: 0n,
         lastActivity: null,
       },
@@ -316,6 +319,7 @@ describe('mapRawReviewRow', () => {
 
     expect(row.consentToPublicReview).toBeNull();
     expect(row.hasOwnReview).toBe(false);
+    expect(row.hasOwnChartReview).toBe(true);
     expect(row.avgRating).toBeNull();
     expect(row.minRating).toBeNull();
     expect(row.maxRating).toBeNull();
@@ -354,6 +358,7 @@ describe('mapRawReviewRow', () => {
       maxRating: null,
       stdevRating: null,
       hasOwnReview: false,
+      hasOwnChartReview: false,
       commentCount: 0n,
       lastActivity: null,
     };
