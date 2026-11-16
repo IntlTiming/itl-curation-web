@@ -83,6 +83,12 @@ export type ReviewRevisionEntry = {
   showDetails: boolean;
 };
 
+// What the comments feed's revision cards actually need - suggestion review revisions have no
+// submission or chart hash, so they carry this narrower shape.
+export type ReviewRevisionFeedEntry = Omit<ReviewRevisionEntry, 'submissionId' | 'chartHash'> & {
+  chartHash?: string;
+};
+
 export type SubmissionDetailResponse = {
   submission: SubmissionDetailSubmission;
   reviews: SubmissionDetailReview[];

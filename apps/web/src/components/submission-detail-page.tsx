@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router';
 import { BasicCheckList } from '@/components/basic-check-list';
 import { chartBadgeLabel, ChartDetail, DifficultyBadge } from '@/components/chart-detail';
 import { CommentsPanel } from '@/components/comments-panel';
+import { submissionCommentsUrl } from '@/hooks/use-comments';
 import { GradientBadge } from '@/components/gradient-badge';
 import { Loading } from '@/components/loading';
 import { MarkdownContent } from '@/components/markdown-content';
@@ -89,7 +90,7 @@ function SubmissionSummary({ submission }: { submission: SubmissionDetailSubmiss
   );
 }
 
-function DetailCollapsible({
+export function DetailCollapsible({
   label,
   open,
   onOpenChange,
@@ -115,7 +116,14 @@ function DetailCollapsible({
   );
 }
 
-function ReviewCard({ review, eventSlug }: { review: SubmissionDetailReview; eventSlug: string }) {
+// Suggestion reviews (suggestion-detail-page.tsx) have no submission or chart hash - they're
+// never from another submission or stale, so those two fields are only read when set.
+export type ReviewCardReview = Omit<SubmissionDetailReview, 'submissionId' | 'chartHash'> & {
+  submissionId?: string;
+  chartHash?: string;
+};
+
+export function ReviewCard({ review, eventSlug }: { review: ReviewCardReview; eventSlug: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex flex-col gap-1">
@@ -169,7 +177,7 @@ function ReviewCard({ review, eventSlug }: { review: SubmissionDetailReview; eve
           <span className="text-muted-foreground pl-8 text-xs">
             (from{' '}
             <Link
-              to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(review.submissionId)}`}
+              to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(review.submissionId ?? '')}`}
               className="text-primary hover:underline"
             >
               {review.submissionId}
@@ -339,7 +347,11 @@ export function SubmissionDetailPage() {
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           {slug && fileId && (
-            <CommentsPanel slug={slug} fileId={fileId} reviewRevisions={reviewRevisions} />
+            <CommentsPanel
+              slug={slug}
+              commentsUrl={submissionCommentsUrl(slug, fileId)}
+              reviewRevisions={reviewRevisions}
+            />
           )}
         </div>
       </div>

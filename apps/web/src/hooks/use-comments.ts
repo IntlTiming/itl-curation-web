@@ -11,7 +11,7 @@ export type CommentReaction = {
 
 export type SubmissionComment = {
   id: string;
-  submissionId: string;
+  submissionId?: string; // absent on suggestion comments
   author: {
     id: string;
     displayName: string;
@@ -33,27 +33,33 @@ export type SubmissionComment = {
 export type CommentsState =
   { status: 'loading' } | { status: 'error' } | { status: 'loaded'; comments: SubmissionComment[] };
 
-function commentsUrl(slug: string, fileId: string): string {
+export function submissionCommentsUrl(slug: string, fileId: string): string {
   return `/api/events/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(fileId)}/comments`;
 }
 
-export function useComments(slug: string, fileId: string) {
+export function suggestionCommentsUrl(slug: string, position: number): string {
+  return `/api/events/${encodeURIComponent(slug)}/suggestions/${position}/comments`;
+}
+
+// `baseUrl` is the comments collection endpoint - see submissionCommentsUrl /
+// suggestionCommentsUrl. Both endpoints share the same request/response shapes.
+export function useComments(baseUrl: string) {
   const [state, setState] = useState<CommentsState>({ status: 'loading' });
 
   const refetch = useCallback(() => {
     setState((prev) => (prev.status === 'loaded' ? prev : { status: 'loading' }));
-    fetch(commentsUrl(slug, fileId))
+    fetch(baseUrl)
       .then((res) => (res.ok ? (res.json() as Promise<SubmissionComment[]>) : Promise.reject()))
       .then((comments) => setState({ status: 'loaded', comments }))
       .catch(() => setState({ status: 'error' }));
-  }, [slug, fileId]);
+  }, [baseUrl]);
 
   useEffect(() => {
     refetch();
   }, [refetch]);
 
   async function createComment(body: string): Promise<void> {
-    const res = await fetch(commentsUrl(slug, fileId), {
+    const res = await fetch(baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body }),
@@ -66,7 +72,7 @@ export function useComments(slug: string, fileId: string) {
   }
 
   async function updateComment(commentId: string, body: string): Promise<void> {
-    const res = await fetch(`${commentsUrl(slug, fileId)}/${encodeURIComponent(commentId)}`, {
+    const res = await fetch(`${baseUrl}/${encodeURIComponent(commentId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body }),
@@ -79,7 +85,7 @@ export function useComments(slug: string, fileId: string) {
   }
 
   async function deleteComment(commentId: string): Promise<void> {
-    const res = await fetch(`${commentsUrl(slug, fileId)}/${encodeURIComponent(commentId)}`, {
+    const res = await fetch(`${baseUrl}/${encodeURIComponent(commentId)}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
@@ -92,14 +98,11 @@ export function useComments(slug: string, fileId: string) {
   // Patches only the affected comment's reactions from the response, rather than a full
   // refetch - keeps any other comment's in-progress edit/composer state untouched.
   async function toggleReaction(commentId: string, emoji: string): Promise<void> {
-    const res = await fetch(
-      `${commentsUrl(slug, fileId)}/${encodeURIComponent(commentId)}/reactions/toggle`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji }),
-      },
-    );
+    const res = await fetch(`${baseUrl}/${encodeURIComponent(commentId)}/reactions/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji }),
+    });
     if (!res.ok) {
       const errorBody = await res.json().catch(() => null);
       throw new Error(errorBody?.message ?? 'Failed to react to comment');

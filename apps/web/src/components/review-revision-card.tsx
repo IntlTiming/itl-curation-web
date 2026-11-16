@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type {
-  ReviewRevisionEntry,
+  ReviewRevisionFeedEntry,
   ReviewRevisionEntryContent,
 } from '@/hooks/use-submission-detail';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
@@ -207,8 +207,8 @@ export function ReviewRevisionCard({
   previous,
   eventSlug,
 }: {
-  entry: ReviewRevisionEntry;
-  previous: ReviewRevisionEntry | undefined;
+  entry: ReviewRevisionFeedEntry;
+  previous: ReviewRevisionFeedEntry | undefined;
   eventSlug: string;
 }) {
   return (

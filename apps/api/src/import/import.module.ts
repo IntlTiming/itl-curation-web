@@ -3,6 +3,7 @@ import { PassportModule } from '@nestjs/passport';
 import { EventsModule } from '../events/events.module.js';
 import { ImportController } from './import.controller.js';
 import { ImportService } from './import.service.js';
+import { SuggestionsImportService } from './suggestions-import.service.js';
 
 @Module({
   // PassportModule.register is needed here (not just in EventsModule) so JwtAuthGuard can
@@ -10,6 +11,6 @@ import { ImportService } from './import.service.js';
   // the same registration in events.module.ts.
   imports: [PassportModule.register({ session: false }), EventsModule],
   controllers: [ImportController],
-  providers: [ImportService],
+  providers: [ImportService, SuggestionsImportService],
 })
 export class ImportModule {}

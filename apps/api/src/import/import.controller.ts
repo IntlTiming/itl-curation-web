@@ -14,6 +14,7 @@ import { memoryStorage } from 'multer';
 import { EventAdminGuard } from '../events/event-admin.guard.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { ImportService } from './import.service.js';
+import { SuggestionsImportService } from './suggestions-import.service.js';
 
 const FILE_INTERCEPTOR_OPTIONS = {
   storage: memoryStorage(), // only JSON.parse'd, no disk write needed
@@ -33,7 +34,10 @@ const FILE_INTERCEPTOR_OPTIONS = {
 @Controller('events/:slug/import')
 @UseGuards(JwtAuthGuard, EventAdminGuard)
 export class ImportController {
-  constructor(private readonly importService: ImportService) {}
+  constructor(
+    private readonly importService: ImportService,
+    private readonly suggestionsImportService: SuggestionsImportService,
+  ) {}
 
   @Post('preview')
   @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
@@ -47,5 +51,25 @@ export class ImportController {
   apply(@Req() req: Request & { event: Event }, @UploadedFile() file?: Express.Multer.File) {
     if (!file) throw new BadRequestException('Missing file');
     return this.importService.apply(req.event, file.buffer);
+  }
+
+  @Post('suggestions/preview')
+  @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
+  previewSuggestions(
+    @Req() req: Request & { event: Event },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Missing file');
+    return this.suggestionsImportService.preview(req.event, file.buffer);
+  }
+
+  @Post('suggestions/apply')
+  @UseInterceptors(FileInterceptor('file', FILE_INTERCEPTOR_OPTIONS))
+  applySuggestions(
+    @Req() req: Request & { event: Event },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Missing file');
+    return this.suggestionsImportService.apply(req.event, file.buffer);
   }
 }

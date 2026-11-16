@@ -174,7 +174,11 @@ const REVIEWS_ROW_TONE_CLASS = {
   disqualified: 'bg-red-100 dark:bg-red-500/25',
 } as const;
 
-function rowToneClassName(row: ReviewsRow): string | undefined {
+// Exported (typed structurally) so the Suggestions table tints its rows the same way.
+export function rowToneClassName(row: {
+  hasDisqualification: boolean;
+  hasWarning: boolean;
+}): string | undefined {
   if (row.hasDisqualification) return REVIEWS_ROW_TONE_CLASS.disqualified;
   if (row.hasWarning) return REVIEWS_ROW_TONE_CLASS.warning;
   return undefined;
@@ -301,6 +305,36 @@ export function PublicConsentIndicator({
   );
 }
 
+// The under-title flag badges - exported so the Suggestions table renders them identically.
+export function BasicCheckBadges({ checks }: { checks: ReviewsRow['basicChecks'] }) {
+  if (checks.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {checks.map((check) =>
+        check.level === 'DISQUALIFIED' ? (
+          // Both badges get an explicit border, not just a fill - the row itself is tinted
+          // the same amber/red family (REVIEWS_ROW_TONE_CLASS above), so a same-hue fill
+          // alone can end up nearly indistinguishable from the row behind it (this is what
+          // happened to the warning badge before the border was added: bg-amber-100 badge
+          // on a bg-amber-100 row is a completely invisible edge). destructive's own fill
+          // happens to differ enough from bg-red-100 to read on its own, but the border
+          // makes that robust rather than incidental.
+          <Badge key={check.id} variant="destructive" className="border-destructive/30">
+            {check.label}
+          </Badge>
+        ) : (
+          <Badge
+            key={check.id}
+            className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-400"
+          >
+            {check.label}
+          </Badge>
+        ),
+      )}
+    </div>
+  );
+}
+
 function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
   const title = titleOf(row.chart);
   const subtitle = row.chart.subtitleRomaji || row.chart.subtitle;
@@ -320,45 +354,22 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
         />
       </span>
       {subtitle && <span className="text-muted-foreground text-xs">{subtitle}</span>}
-      {row.basicChecks.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {row.basicChecks.map((check) =>
-            check.level === 'DISQUALIFIED' ? (
-              // Both badges get an explicit border, not just a fill - the row itself is tinted
-              // the same amber/red family (REVIEWS_ROW_TONE_CLASS above), so a same-hue fill
-              // alone can end up nearly indistinguishable from the row behind it (this is what
-              // happened to the warning badge before the border was added: bg-amber-100 badge
-              // on a bg-amber-100 row is a completely invisible edge). destructive's own fill
-              // happens to differ enough from bg-red-100 to read on its own, but the border
-              // makes that robust rather than incidental.
-              <Badge key={check.id} variant="destructive" className="border-destructive/30">
-                {check.label}
-              </Badge>
-            ) : (
-              <Badge
-                key={check.id}
-                className="border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-400"
-              >
-                {check.label}
-              </Badge>
-            ),
-          )}
-        </div>
-      )}
+      <BasicCheckBadges checks={row.basicChecks} />
     </div>
   );
 }
 
-function SortableHeader({
+// Generic over the column key so the Suggestions table shares the same header behavior.
+export function SortableHeader<C extends string>({
   label,
   column,
   sort,
   onToggle,
 }: {
   label: string;
-  column: SortColumn;
-  sort: SortState;
-  onToggle: (column: SortColumn) => void;
+  column: C;
+  sort: { column: C; direction: 'asc' | 'desc' } | null;
+  onToggle: (column: C) => void;
 }) {
   const active = sort?.column === column;
   return (
