@@ -24,6 +24,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ReviewsChart, ReviewsRow } from '@/hooks/use-reviews';
 import { RATING_GRADIENT, STDEV_GRADIENT } from '@/lib/gradient-color';
 import { shortenTechTag, sortTechTags } from '@/lib/tech-tags';
+import { type PickTitle, useDisplayTitle } from '@/components/title-display-provider';
+import { DisplayTitle } from '@/components/display-title';
 
 // Columns a user can re-sort by clicking their header. Add/Edit has no sortable value.
 // Exported (along with SortState/SORTABLE_COLUMNS below) so use-reviews-sort.ts can persist
@@ -161,8 +163,8 @@ function columnClassName(key: ReviewsColumnKey): string | undefined {
   return cn(NARROW_COLUMNS.has(key) && 'w-px', RIGHT_ALIGNED_COLUMNS.has(key) && 'text-right');
 }
 
-function titleOf(chart: ReviewsChart): string {
-  return chart.titleRomaji || chart.title;
+function titleOf(chart: ReviewsChart, pick: PickTitle): string {
+  return pick(chart.title, chart.titleRomaji);
 }
 
 // Same amber/red tint scale as submission-row.tsx's ROW_TONE_CLASS (ignored/error) - reused
@@ -187,12 +189,17 @@ export function rowToneClassName(row: {
 // Meter's own column-sort uses only chart.meter (per spec) - a narrower, independent
 // ordering from the multi-key default row order (playstyle -> meter -> difficulty slot ->
 // title) that governs the table when no column sort is active. Both are intentional.
-function compareByColumn(a: ReviewsRow, b: ReviewsRow, column: SortColumn): number {
+function compareByColumn(
+  a: ReviewsRow,
+  b: ReviewsRow,
+  column: SortColumn,
+  pick: PickTitle,
+): number {
   switch (column) {
     case 'meter':
       return a.chart.meter - b.chart.meter;
     case 'title':
-      return titleOf(a.chart).localeCompare(titleOf(b.chart));
+      return titleOf(a.chart, pick).localeCompare(titleOf(b.chart, pick));
     case 'pack':
       return a.pack.localeCompare(b.pack);
     case 'stepartist':
@@ -234,7 +241,7 @@ const REVIEW_COUNT_TIEBREAK_COLUMNS = new Set<SortColumn>([
   'stdevRating',
 ]);
 
-function applySort(rows: ReviewsRow[], sort: SortState): ReviewsRow[] {
+function applySort(rows: ReviewsRow[], sort: SortState, pick: PickTitle): ReviewsRow[] {
   if (!sort) return rows;
   const { column } = sort;
   const direction = sort.direction === 'asc' ? 1 : -1;
@@ -250,7 +257,7 @@ function applySort(rows: ReviewsRow[], sort: SortState): ReviewsRow[] {
       const bMissing = b[column as keyof ReviewsRow] === null;
       if (aMissing || bMissing) return Number(aMissing) - Number(bMissing);
     }
-    return direction * compareByColumn(a, b, column);
+    return direction * compareByColumn(a, b, column, pick);
   }
 }
 
@@ -336,8 +343,6 @@ export function BasicCheckBadges({ checks }: { checks: ReviewsRow['basicChecks']
 }
 
 function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
-  const title = titleOf(row.chart);
-  const subtitle = row.chart.subtitleRomaji || row.chart.subtitle;
   return (
     <div className="flex flex-col gap-1">
       <span className="inline-flex items-center gap-1.5">
@@ -345,7 +350,7 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
           to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(row.fileId)}`}
           className="hover:underline"
         >
-          {title}
+          <DisplayTitle native={row.chart.title} romaji={row.chart.titleRomaji} />
         </Link>
         <CmoddabilityIndicator chart={row.chart} cmodPreference={row.cmodPreference} />
         <PublicConsentIndicator
@@ -353,7 +358,13 @@ function TitleCell({ row, eventSlug }: { row: ReviewsRow; eventSlug: string }) {
           consentToPublicReview={row.consentToPublicReview}
         />
       </span>
-      {subtitle && <span className="text-muted-foreground text-xs">{subtitle}</span>}
+      {(row.chart.subtitle || row.chart.subtitleRomaji) && (
+        <DisplayTitle
+          native={row.chart.subtitle}
+          romaji={row.chart.subtitleRomaji}
+          className="text-muted-foreground text-xs"
+        />
+      )}
       <BasicCheckBadges checks={row.basicChecks} />
     </div>
   );
@@ -412,7 +423,8 @@ export function ReviewsTable({
   // tags driving a row's best-match rank stand out from the rest of its claimed tags.
   selectedTechTags: string[];
 }) {
-  const sortedRows = useMemo(() => applySort(rows, sort), [rows, sort]);
+  const pick = useDisplayTitle();
+  const sortedRows = useMemo(() => applySort(rows, sort, pick), [rows, sort, pick]);
 
   function toggleSort(column: SortColumn) {
     if (!sort || sort.column !== column) {

@@ -44,6 +44,10 @@ export type ReviewsRow = {
   // Whether the current user already has a review on this exact submission (by fileId) - lets
   // the Add/Edit icon distinguish the two states.
   hasOwnReview: boolean;
+  // Whether the current user has reviewed this chart at all - this submission, or a duplicate
+  // submission with the same chart hash. Drives the Random!! button (and, server-side, the
+  // "Only unreviewed by me" filter) so duplicates of an already-reviewed chart aren't offered.
+  hasOwnChartReview: boolean;
   // Both submissionId-scoped, NOT chart-hash matched like every field above - see the
   // Comment model's schema comment for why comments never cross-match submissions.
   commentCount: number;

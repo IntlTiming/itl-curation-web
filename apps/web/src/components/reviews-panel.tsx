@@ -46,8 +46,9 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
 }
 
 // Picks uniformly from the rows currently on screen (every active filter already applied
-// server-side, and the list isn't paginated) that the current user hasn't reviewed - by the
-// same per-submission hasOwnReview as the row's Add/Edit icon. Disabled while loading or on an
+// server-side, and the list isn't paginated) whose chart the current user hasn't reviewed -
+// by hasOwnChartReview, so a duplicate submission of a chart they already reviewed elsewhere
+// is skipped even though its own Add/Edit icon still says Add. Disabled while loading or on an
 // empty list; the tooltip only explains the "all reviewed" case, since an empty list already
 // says "No submissions match these filters." below.
 function RandomUnreviewedButton({
@@ -58,7 +59,7 @@ function RandomUnreviewedButton({
   rows: ReviewsRow[] | null;
 }) {
   const navigate = useNavigate();
-  const unreviewed = useMemo(() => rows?.filter((row) => !row.hasOwnReview) ?? [], [rows]);
+  const unreviewed = useMemo(() => rows?.filter((row) => !row.hasOwnChartReview) ?? [], [rows]);
   const allReviewed = rows !== null && rows.length > 0 && unreviewed.length === 0;
 
   function handleClick() {

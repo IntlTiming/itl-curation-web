@@ -1,6 +1,7 @@
 import { cn } from 'cn';
 import { CopyButton } from '@/components/copy-button';
 import { Badge } from '@/components/ui/badge';
+import { type TitleDisplay, useTitleDisplay } from '@/components/title-display-provider';
 
 export type ChartFields = {
   hash: string;
@@ -122,13 +123,15 @@ function simpleField(
   return { key, label, getDisplay: (chart) => (format ? format(chart[key]) : fmt(chart[key])) };
 }
 
-// "{value} / {romaji}" when a romaji translit exists, else just the value - the romaji
-// fields are "" when the simfile has no translit tag (see the Chart schema comment).
+// Both variants when a romaji translit exists, else just the value - the romaji fields are ""
+// when the simfile has no translit tag (see the Chart schema comment). The variant matching
+// the user's Song Title Display setting comes first: "{romaji} / {value}" or "{value} / {romaji}".
 function titleField(
   key: string,
   label: string,
   mainKey: keyof ChartFields,
   romajiKey: keyof ChartFields,
+  titleDisplay: TitleDisplay,
 ): FieldDef {
   return {
     key,
@@ -136,18 +139,21 @@ function titleField(
     getDisplay: (chart) => {
       const main = String(chart[mainKey]);
       const romaji = String(chart[romajiKey]);
-      return romaji ? `${main} / ${romaji}` : main;
+      if (!romaji) return main;
+      return titleDisplay === 'native' ? `${main} / ${romaji}` : `${romaji} / ${main}`;
     },
   };
 }
 
 // Identity fields, rendered first - title/subtitle/artist collapse with their romaji
 // counterpart into one row instead of two.
-const IDENTITY_FIELD_DEFS: FieldDef[] = [
-  titleField('title', 'Title', 'title', 'titleRomaji'),
-  titleField('subtitle', 'Subtitle', 'subtitle', 'subtitleRomaji'),
-  titleField('artist', 'Artist', 'artist', 'artistRomaji'),
-];
+function identityFieldDefs(titleDisplay: TitleDisplay): FieldDef[] {
+  return [
+    titleField('title', 'Title', 'title', 'titleRomaji', titleDisplay),
+    titleField('subtitle', 'Subtitle', 'subtitle', 'subtitleRomaji', titleDisplay),
+    titleField('artist', 'Artist', 'artist', 'artistRomaji', titleDisplay),
+  ];
+}
 
 // "114" when the chart has no BPM change, else "114–120".
 const BPM_FIELD: FieldDef = {
@@ -256,6 +262,7 @@ export function ChartDetail({
   // identifies this block as "Chart" - skips the redundant internal heading.
   hideHeading?: boolean;
 }) {
+  const { titleDisplay } = useTitleDisplay();
   const difficultyRow = {
     key: 'difficulty',
     node: (
@@ -284,7 +291,7 @@ export function ChartDetail({
     ),
   };
   const allRows = [
-    ...IDENTITY_FIELD_DEFS.map((fieldDef) => ({
+    ...identityFieldDefs(titleDisplay).map((fieldDef) => ({
       key: fieldDef.key,
       node: (
         <FieldRow

@@ -36,6 +36,7 @@ import { useEvent } from '@/hooks/use-event';
 import type { OrphanedReviewCandidate } from '@/hooks/use-orphaned-reviews';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { suggestionsUrl, useSuggestionDetail } from '@/hooks/use-suggestions';
+import { DisplayTitle } from '@/components/display-title';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -113,8 +114,6 @@ function LinkToSubmissionDialog({
     }
   }
 
-  const selectedTitle = selected ? selected.chart.titleRomaji || selected.chart.title : null;
-
   return (
     <Dialog open onOpenChange={(open) => !open && !linking && onClose()}>
       <DialogContent className="sm:max-w-lg">
@@ -131,8 +130,15 @@ function LinkToSubmissionDialog({
         {result ? (
           <div className="flex flex-col gap-2 text-sm">
             <p>
-              Linked to <span className="font-medium">{selectedTitle}</span>. Copied {result.copied}{' '}
-              review{result.copied === 1 ? '' : 's'}.
+              Linked to{' '}
+              {selected && (
+                <DisplayTitle
+                  native={selected.chart.title}
+                  romaji={selected.chart.titleRomaji}
+                  className="font-medium"
+                />
+              )}
+              . Copied {result.copied} review{result.copied === 1 ? '' : 's'}.
             </p>
             {result.skipped.length > 0 && (
               <p className="text-muted-foreground">
@@ -280,7 +286,14 @@ export function SuggestionDetailPage() {
               to={`/events/${encodeURIComponent(slug)}/submissions/${encodeURIComponent(suggestion.linkedSubmission.fileId)}`}
               className="text-primary font-medium hover:underline"
             >
-              {suggestion.linkedSubmission.title ?? suggestion.linkedSubmission.fileId}
+              {suggestion.linkedSubmission.title !== null ? (
+                <DisplayTitle
+                  native={suggestion.linkedSubmission.title}
+                  romaji={suggestion.linkedSubmission.titleRomaji ?? ''}
+                />
+              ) : (
+                suggestion.linkedSubmission.fileId
+              )}
             </Link>{' '}
             ({suggestion.linkedSubmission.stepartist})
             {suggestion.linkedBy && <> by {suggestion.linkedBy.displayName}</>}

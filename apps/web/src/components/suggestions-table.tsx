@@ -30,6 +30,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SuggestionRow } from '@/hooks/use-suggestions';
 import { toExternalHref } from '@/lib/external-link';
+import { type PickTitle, useDisplayTitle } from '@/components/title-display-provider';
 
 export type SuggestionsSortColumn = Exclude<SuggestionsColumnKey, 'addEdit'>;
 export type SuggestionsSortState = {
@@ -95,12 +96,16 @@ function columnClassName(key: SuggestionsColumnKey): string | undefined {
   return cn(NARROW_COLUMNS.has(key) && 'w-px', RIGHT_ALIGNED_COLUMNS.has(key) && 'text-right');
 }
 
-function linkedLabel(row: SuggestionRow): string | null {
+function linkedLabel(row: SuggestionRow, pick: PickTitle): string | null {
   const linked = row.linkedSubmission;
-  return linked ? (linked.title ?? linked.fileId) : null;
+  return linked ? pick(linked.title ?? '', linked.titleRomaji ?? '') || linked.fileId : null;
 }
 
-function sortValue(row: SuggestionRow, column: SuggestionsSortColumn): number | string | null {
+function sortValue(
+  row: SuggestionRow,
+  column: SuggestionsSortColumn,
+  pick: PickTitle,
+): number | string | null {
   switch (column) {
     case 'position':
       return row.position;
@@ -115,7 +120,7 @@ function sortValue(row: SuggestionRow, column: SuggestionsSortColumn): number | 
     case 'submittedAt':
       return Date.parse(row.submittedAt);
     case 'linked':
-      return linkedLabel(row);
+      return linkedLabel(row, pick);
     case 'lastActivity':
       return row.lastActivity ? Date.parse(row.lastActivity) : null;
     default:
@@ -124,13 +129,13 @@ function sortValue(row: SuggestionRow, column: SuggestionsSortColumn): number | 
 }
 
 // No sort = file order (position ascending), which is also the API's own row order.
-function sortSuggestions(rows: SuggestionRow[], sort: SuggestionsSortState) {
+function sortSuggestions(rows: SuggestionRow[], sort: SuggestionsSortState, pick: PickTitle) {
   if (!sort) return rows;
   const { column } = sort;
   const direction = sort.direction === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
-    const av = sortValue(a, column);
-    const bv = sortValue(b, column);
+    const av = sortValue(a, column, pick);
+    const bv = sortValue(b, column, pick);
     if (NULLS_LAST_COLUMNS.has(column) && (av === null || bv === null)) {
       if (av === null && bv === null) return a.position - b.position;
       return av === null ? 1 : -1;
@@ -193,8 +198,13 @@ function LinkCell({ link }: { link: string }) {
 }
 
 function LinkedCell({ row, eventSlug }: { row: SuggestionRow; eventSlug: string }) {
+  const pick = useDisplayTitle();
   const linked = row.linkedSubmission;
   if (!linked) return <span className="text-muted-foreground">—</span>;
+  // This cell is already a tooltip trigger (nesting a DisplayTitle tooltip would open both), so
+  // the non-preferred title variant goes into the existing tooltip instead.
+  const shownTitle = linkedLabel(row, pick);
+  const otherTitle = [linked.title, linked.titleRomaji].find((t) => t && t !== shownTitle);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -203,12 +213,13 @@ function LinkedCell({ row, eventSlug }: { row: SuggestionRow; eventSlug: string 
         >
           <Badge variant="secondary" className="max-w-56 gap-1">
             <Link2 className="size-3 shrink-0" />
-            <span className="truncate">{linkedLabel(row)}</span>
+            <span className="truncate">{linkedLabel(row, pick)}</span>
           </Badge>
         </Link>
       </TooltipTrigger>
       <TooltipContent>
-        Linked to {linkedLabel(row)} by {linked.stepartist}
+        Linked to {linkedLabel(row, pick)} by {linked.stepartist}
+        {otherTitle && <div className="opacity-70">{otherTitle}</div>}
       </TooltipContent>
     </Tooltip>
   );
@@ -231,7 +242,8 @@ export function SuggestionsTable({
   sort: SuggestionsSortState;
   onSortChange: (sort: SuggestionsSortState) => void;
 }) {
-  const sortedRows = useMemo(() => sortSuggestions(rows, sort), [rows, sort]);
+  const pick = useDisplayTitle();
+  const sortedRows = useMemo(() => sortSuggestions(rows, sort, pick), [rows, sort, pick]);
 
   function toggleSort(column: SuggestionsSortColumn) {
     const firstDirection = DESC_FIRST_COLUMNS.has(column) ? 'desc' : 'asc';
