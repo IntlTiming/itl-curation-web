@@ -58,6 +58,21 @@ export type OrphanedReviewGroup = {
   candidates: OrphanedReviewCandidate[];
 };
 
+export type OutdatedReviewGroup = {
+  submission: {
+    fileId: string;
+    stepartist: string;
+    pack: string;
+    submitter: string;
+    submittedAt: string;
+    currentChartHash: string;
+  };
+  reviews: OrphanedReview[];
+};
+
+export type OutdatedReviewsState =
+  { status: 'loading' } | { status: 'error' } | { status: 'loaded'; groups: OutdatedReviewGroup[] };
+
 export type OrphanedReviewsState =
   { status: 'loading' } | { status: 'error' } | { status: 'loaded'; groups: OrphanedReviewGroup[] };
 
@@ -102,4 +117,25 @@ export function useOrphanedReviews(slug: string) {
   }
 
   return { ...state, refetch, relink, searchCandidates };
+}
+
+export function useOutdatedReviews(slug: string): OutdatedReviewsState {
+  const [state, setState] = useState<OutdatedReviewsState>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${orphanedReviewsUrl(slug)}/outdated`)
+      .then((res) => (res.ok ? (res.json() as Promise<OutdatedReviewGroup[]>) : Promise.reject()))
+      .then((groups) => {
+        if (!cancelled) setState({ status: 'loaded', groups });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ status: 'error' });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  return state;
 }

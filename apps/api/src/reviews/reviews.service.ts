@@ -403,7 +403,7 @@ export function buildBaseWhereFragments(
   // chart (Meter/Title have nothing to show for them) are excluded implicitly. Ignored
   // submissions are always excluded too. Don't add a filter to surface them here: the import
   // deletes an ignored submission's chart (import.service.ts), so the charts JOIN above
-  // guarantees such a filter matches nothing - use the Submissions or Orphaned Reviews tabs.
+  // guarantees such a filter matches nothing - use the Submissions or Broken Reviews tabs.
   const fragments: Prisma.Sql[] = [
     Prisma.sql`s."eventId" = ${eventId}`,
     Prisma.sql`c.playstyle = ${query.playstyle}::"Playstyle"`,

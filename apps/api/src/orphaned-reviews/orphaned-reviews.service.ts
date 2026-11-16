@@ -79,6 +79,21 @@ export type OrphanedReviewGroup = {
   candidates: OrphanedReviewCandidate[];
 };
 
+// A live (non-ignored) submission whose current chart hash differs from the hash snapshotted on
+// at least one of its reviews - i.e. the chart was revised after those reviews were written, so
+// they're excluded from the chart's hash-scoped stats until the reviewer re-saves.
+export type OutdatedReviewGroup = {
+  submission: {
+    fileId: string;
+    stepartist: string;
+    pack: string;
+    submitter: string;
+    submittedAt: Date;
+    currentChartHash: string;
+  };
+  reviews: OrphanedReview[];
+};
+
 type RawCandidateRow = {
   fileId: string;
   stepartist: string;
@@ -111,6 +126,36 @@ function mapCandidate(row: RawCandidateRow): OrphanedReviewCandidate {
       playstyle: row.playstyle,
       difficulty: row.difficulty,
       meter: row.meter,
+    },
+  };
+}
+
+function mapReview(
+  review: Prisma.ReviewGetPayload<{ include: { reviewer: true } }>,
+): OrphanedReview {
+  return {
+    id: review.id,
+    reviewer: {
+      id: review.reviewer.id,
+      displayName: review.reviewer.displayName ?? review.reviewer.discordUsername,
+      discordId: review.reviewer.discordId,
+      discordAvatarHash: review.reviewer.discordAvatarHash,
+    },
+    rating: review.rating == null ? null : review.rating / 100,
+    passing: review.passing,
+    scoring: review.scoring,
+    notes: review.notes,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt,
+    chartHash: review.chartHash,
+    chart: {
+      title: review.chartTitle,
+      titleRomaji: review.chartTitleRomaji,
+      artist: review.chartArtist,
+      artistRomaji: review.chartArtistRomaji,
+      playstyle: review.chartPlaystyle,
+      difficulty: review.chartDifficulty,
+      meter: review.chartMeter,
     },
   };
 }
@@ -162,35 +207,54 @@ export class OrphanedReviewsService {
           submitter: submission.submitter,
           submittedAt: submission.submittedAt,
         },
-        reviews: submission.reviews.map((review) => ({
-          id: review.id,
-          reviewer: {
-            id: review.reviewer.id,
-            displayName: review.reviewer.displayName ?? review.reviewer.discordUsername,
-            discordId: review.reviewer.discordId,
-            discordAvatarHash: review.reviewer.discordAvatarHash,
-          },
-          rating: review.rating == null ? null : review.rating / 100,
-          passing: review.passing,
-          scoring: review.scoring,
-          notes: review.notes,
-          createdAt: review.createdAt,
-          updatedAt: review.updatedAt,
-          chartHash: review.chartHash,
-          chart: {
-            title: review.chartTitle,
-            titleRomaji: review.chartTitleRomaji,
-            artist: review.chartArtist,
-            artistRomaji: review.chartArtistRomaji,
-            playstyle: review.chartPlaystyle,
-            difficulty: review.chartDifficulty,
-            meter: review.chartMeter,
-          },
-        })),
+        reviews: submission.reviews.map(mapReview),
         candidates,
       });
     }
     return groups;
+  }
+
+  // Every review on a live (non-ignored) submission whose snapshotted chartHash no longer
+  // matches the submission's current chart hash, grouped by submission. Prisma can't compare
+  // columns across a relation in `where`, so the matching review ids come from raw SQL first.
+  async listOutdatedForEvent(eventId: string): Promise<OutdatedReviewGroup[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT r.id
+      FROM reviews r
+      JOIN submissions s ON s."fileId" = r."submissionId"
+      JOIN charts c ON c."submissionId" = s."fileId"
+      WHERE s."eventId" = ${eventId} AND NOT s."isIgnored" AND r."chartHash" != c.hash
+    `);
+    if (rows.length === 0) return [];
+
+    const reviews = await this.prisma.review.findMany({
+      where: { id: { in: rows.map((r) => r.id) } },
+      include: { reviewer: true, submission: { include: { chart: true } } },
+      orderBy: [{ submission: { submittedAt: 'desc' } }, { createdAt: 'asc' }],
+    });
+
+    const groups = new Map<string, OutdatedReviewGroup>();
+    for (const review of reviews) {
+      const { submission } = review;
+      if (!submission.chart) continue; // raced with an import clearing the chart
+      let group = groups.get(submission.fileId);
+      if (!group) {
+        group = {
+          submission: {
+            fileId: submission.fileId,
+            stepartist: submission.stepartist,
+            pack: submission.pack,
+            submitter: submission.submitter,
+            submittedAt: submission.submittedAt,
+            currentChartHash: submission.chart.hash,
+          },
+          reviews: [],
+        };
+        groups.set(submission.fileId, group);
+      }
+      group.reviews.push(mapReview(review));
+    }
+    return [...groups.values()];
   }
 
   // Manual escape hatch for when none of listForEvent's ranked suggestions are the right one -

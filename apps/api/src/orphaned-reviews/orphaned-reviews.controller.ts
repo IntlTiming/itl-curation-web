@@ -18,6 +18,11 @@ export class OrphanedReviewsController {
     return this.orphanedReviews.listForEvent(req.event.id);
   }
 
+  @Get('outdated')
+  listOutdated(@Req() req: Request & { event: Event }) {
+    return this.orphanedReviews.listOutdatedForEvent(req.event.id);
+  }
+
   @Get('search-submissions')
   search(@Req() req: Request & { event: Event }, @Query('q') q = '') {
     return this.orphanedReviews.searchCandidates(req.event.id, q);
