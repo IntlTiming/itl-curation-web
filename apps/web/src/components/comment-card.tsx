@@ -43,6 +43,7 @@ export function CommentCard({
   comment,
   eventSlug,
   currentUserId,
+  readOnly = false,
   onEdit,
   onDelete,
   onToggleReaction,
@@ -50,6 +51,7 @@ export function CommentCard({
   comment: SubmissionComment;
   eventSlug: string;
   currentUserId: string | null;
+  readOnly?: boolean;
   onEdit: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
   onToggleReaction: (commentId: string, emoji: string) => Promise<void>;
@@ -61,7 +63,7 @@ export function CommentCard({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const isOwn = comment.author.id === currentUserId;
+  const isOwn = !readOnly && comment.author.id === currentUserId;
 
   async function handleSave() {
     const trimmed = editBody.trim();
@@ -177,6 +179,7 @@ export function CommentCard({
 
       <CommentReactions
         reactions={comment.reactions}
+        disabled={readOnly}
         onToggle={(emoji) => onToggleReaction(comment.id, emoji)}
       />
 

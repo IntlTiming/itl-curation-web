@@ -8,6 +8,7 @@ import { Loading } from '@/components/loading';
 import { ModeToggle } from '@/components/mode-toggle';
 import { ReviewerDetailPage } from '@/components/reviewer-detail-page';
 import { SubmissionDetailPage } from '@/components/submission-detail-page';
+import { SuggestionDetailPage } from '@/components/suggestion-detail-page';
 import { UserMenu } from '@/components/user-menu';
 import { useAuth } from '@/hooks/use-auth';
 import { BreadcrumbProvider } from '@/hooks/use-breadcrumb';
@@ -50,6 +51,10 @@ function App() {
               <Route path="/" element={<EventList user={auth.user} />} />
               <Route path="/events/:slug" element={<EventDetail />} />
               <Route path="/events/:slug/submissions/:fileId" element={<SubmissionDetailPage />} />
+              <Route
+                path="/events/:slug/suggestions/:position"
+                element={<SuggestionDetailPage />}
+              />
               <Route path="/events/:slug/user/:userId" element={<ReviewerDetailPage />} />
             </Routes>
           )}

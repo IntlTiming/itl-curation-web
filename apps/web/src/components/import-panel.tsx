@@ -1,8 +1,8 @@
 import { cn } from 'cn';
-import { ChevronRight, CircleCheck, FileJson, UploadCloud, X } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Fragment, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
 import { ChartDetail, type ChartFields } from '@/components/chart-detail';
+import { CHANGE_KIND_CLASS, FileImportFlow, formatValue } from '@/components/file-import-flow';
 import { SubmissionDetail, type SubmissionFields } from '@/components/submission-detail';
 import {
   ChartCell,
@@ -13,6 +13,7 @@ import {
   SubmissionStatusBadge,
   type RowTone,
 } from '@/components/submission-row';
+import { SuggestionsImport } from '@/components/suggestions-import';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +24,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFileImport } from '@/hooks/use-file-import';
 
 type SubmissionRowSummary = {
   fileId: string;
@@ -75,164 +78,16 @@ type ImportApplyResponse = {
   };
 };
 
-type ImportValidationErrorResponse = { ok: false; errors: string[] };
-
-type ImportPanelState =
-  | { phase: 'picking' }
-  | { phase: 'previewing' }
-  | { phase: 'preview-error'; errors: string[] }
-  | { phase: 'preview-ready'; file: File; preview: ImportPreviewResponse }
-  | { phase: 'applying'; file: File }
-  | { phase: 'apply-error'; errors: string[] }
-  | { phase: 'applied'; result: ImportApplyResponse['result'] };
-
-function formatValue(field: string, value: unknown): string {
-  if (field === 'submittedAt' && typeof value === 'string') return formatTimestamp(value);
-  if (value === null || value === undefined) return '—';
-  if (Array.isArray(value)) return value.length ? value.join(', ') : '(none)';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  return String(value);
-}
-
-// Mirrors the conventional diff coloring (added/modified/removed) so the three kinds of
-// change read at a glance, consistently across the summary, table, and result badges.
-const CHANGE_KIND_CLASS = {
-  insert:
-    'border-transparent bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-400',
-  update: 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-400',
-  ignore: 'border-transparent bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-400',
-} as const;
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function Dropzone({
-  disabled,
-  selectedFile,
-  onSelect,
-  onClear,
+function SubmissionsImportPreview({
+  preview,
+  onConfirm,
+  onReset,
 }: {
-  disabled: boolean;
-  selectedFile: File | null;
-  onSelect: (file: File) => void;
-  onClear: () => void;
+  preview: ImportPreviewResponse;
+  onConfirm: () => void;
+  onReset: () => void;
 }) {
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    disabled,
-    multiple: false,
-    accept: { 'application/json': ['.json'] },
-    onDrop: (acceptedFiles) => {
-      if (acceptedFiles[0]) onSelect(acceptedFiles[0]);
-    },
-  });
-
-  if (selectedFile) {
-    return (
-      <div
-        {...getRootProps()}
-        className={cn(
-          'border-primary/50 bg-primary/5 flex items-center gap-3 rounded-md border-2 p-4 text-sm transition-colors',
-          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-          isDragActive && 'border-primary bg-primary/10',
-        )}
-      >
-        <input {...getInputProps()} />
-        <FileJson className="text-primary size-6 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 font-medium">
-            <CircleCheck className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span className="truncate">{selectedFile.name}</span>
-          </p>
-          <p className="text-muted-foreground">
-            {formatFileSize(selectedFile.size)} ·{' '}
-            {isDragActive ? 'Drop to replace' : 'Click or drop to replace'}
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled={disabled}
-          onClick={(e) => {
-            e.stopPropagation();
-            onClear();
-          }}
-        >
-          <X />
-          <span className="sr-only">Remove file</span>
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      {...getRootProps()}
-      className={cn(
-        'flex flex-col items-center gap-1 rounded-md border border-dashed p-8 text-center text-sm transition-colors',
-        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-        isDragActive ? 'border-primary bg-muted/50' : 'border-input hover:bg-muted/30',
-      )}
-    >
-      <input {...getInputProps()} />
-      <UploadCloud className="text-muted-foreground size-6" />
-      <p className="text-muted-foreground">
-        {isDragActive
-          ? 'Drop submissions.json here'
-          : 'Drag & drop submissions.json, or click to browse'}
-      </p>
-    </div>
-  );
-}
-
-async function postFile<T>(url: string, file: File): Promise<T | ImportValidationErrorResponse> {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch(url, { method: 'POST', body: form });
-  const body = (await res.json().catch(() => null)) as T | ImportValidationErrorResponse | null;
-  if (!body) {
-    return { ok: false, errors: ["Couldn't reach the server. Try again."] };
-  }
-  return body;
-}
-
-export function ImportPanel({ eventSlug }: { eventSlug: string }) {
-  const [state, setState] = useState<ImportPanelState>({ phase: 'picking' });
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  async function handlePreview() {
-    if (!pendingFile) return;
-    const file = pendingFile;
-    setState({ phase: 'previewing' });
-    const body = await postFile<ImportPreviewResponse>(
-      `/api/events/${eventSlug}/import/preview`,
-      file,
-    );
-    if (!body.ok) {
-      setState({ phase: 'preview-error', errors: body.errors });
-      return;
-    }
-    setState({ phase: 'preview-ready', file, preview: body });
-  }
-
-  async function handleApply(file: File) {
-    setState({ phase: 'applying', file });
-    const body = await postFile<ImportApplyResponse>(`/api/events/${eventSlug}/import/apply`, file);
-    if (!body.ok) {
-      setState({ phase: 'apply-error', errors: body.errors });
-      return;
-    }
-    setState({ phase: 'applied', result: body.result });
-  }
-
-  function reset() {
-    setPendingFile(null);
-    setExpanded(new Set());
-    setState({ phase: 'picking' });
-  }
 
   function toggleExpanded(fileId: string) {
     setExpanded((prev) => {
@@ -243,72 +98,6 @@ export function ImportPanel({ eventSlug }: { eventSlug: string }) {
     });
   }
 
-  if (state.phase === 'picking' || state.phase === 'previewing') {
-    return (
-      <div className="flex flex-col gap-3">
-        <Dropzone
-          disabled={state.phase === 'previewing'}
-          selectedFile={pendingFile}
-          onSelect={setPendingFile}
-          onClear={() => setPendingFile(null)}
-        />
-        <div>
-          <Button disabled={!pendingFile || state.phase === 'previewing'} onClick={handlePreview}>
-            {state.phase === 'previewing' ? 'Previewing…' : 'Preview'}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (state.phase === 'preview-error' || state.phase === 'apply-error') {
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="border-destructive/50 rounded-md border p-4">
-          <ul className="list-disc space-y-1 pl-4">
-            {state.errors.map((error, i) => (
-              <li key={i} className="text-destructive text-sm">
-                {error}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <Button variant="outline" onClick={reset}>
-            Choose a different file
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (state.phase === 'applying') {
-    return <p className="text-muted-foreground text-sm">Applying import…</p>;
-  }
-
-  if (state.phase === 'applied') {
-    const { result } = state;
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          <Badge className={CHANGE_KIND_CLASS.insert}>{result.inserted} inserted</Badge>
-          <Badge className={CHANGE_KIND_CLASS.update}>{result.updated} updated</Badge>
-          <Badge className={CHANGE_KIND_CLASS.ignore}>{result.newlyIgnored} newly ignored</Badge>
-          <Badge className={CHANGE_KIND_CLASS.ignore}>
-            {result.chartsCleared} chart(s) cleared
-          </Badge>
-          <Badge variant="outline">{result.unchanged} unchanged</Badge>
-          <Badge variant="outline">{result.alreadyIgnored} already ignored</Badge>
-        </div>
-        <div>
-          <Button onClick={reset}>Run another import</Button>
-        </div>
-      </div>
-    );
-  }
-
-  // preview-ready
-  const { file, preview } = state;
   const actionableRows: {
     row: SubmissionRowSummary;
     kind: string;
@@ -471,11 +260,60 @@ export function ImportPanel({ eventSlug }: { eventSlug: string }) {
       )}
 
       <div className="flex gap-2">
-        <Button onClick={() => handleApply(file)}>Confirm import</Button>
-        <Button variant="outline" onClick={reset}>
+        <Button onClick={onConfirm}>Confirm import</Button>
+        <Button variant="outline" onClick={onReset}>
           Choose a different file
         </Button>
       </div>
+    </div>
+  );
+}
+
+function SubmissionsImport({ eventSlug }: { eventSlug: string }) {
+  const importer = useFileImport<ImportPreviewResponse, ImportApplyResponse['result']>(
+    `/api/events/${eventSlug}/import`,
+  );
+  return (
+    <FileImportFlow
+      fileName="submissions.json"
+      importer={importer}
+      renderPreview={(preview, onConfirm, onReset) => (
+        <SubmissionsImportPreview preview={preview} onConfirm={onConfirm} onReset={onReset} />
+      )}
+      renderApplied={(result) => (
+        <div className="flex flex-wrap gap-2">
+          <Badge className={CHANGE_KIND_CLASS.insert}>{result.inserted} inserted</Badge>
+          <Badge className={CHANGE_KIND_CLASS.update}>{result.updated} updated</Badge>
+          <Badge className={CHANGE_KIND_CLASS.ignore}>{result.newlyIgnored} newly ignored</Badge>
+          <Badge className={CHANGE_KIND_CLASS.ignore}>
+            {result.chartsCleared} chart(s) cleared
+          </Badge>
+          <Badge variant="outline">{result.unchanged} unchanged</Badge>
+          <Badge variant="outline">{result.alreadyIgnored} already ignored</Badge>
+        </div>
+      )}
+    />
+  );
+}
+
+type ImportKind = 'submissions' | 'suggestions';
+
+export function ImportPanel({ eventSlug }: { eventSlug: string }) {
+  const [kind, setKind] = useState<ImportKind>('submissions');
+  return (
+    <div className="flex flex-col gap-4">
+      <Tabs value={kind} onValueChange={(value) => setKind(value as ImportKind)}>
+        <TabsList>
+          <TabsTrigger value="submissions">Submissions</TabsTrigger>
+          <TabsTrigger value="suggestions">Suggestions</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {/* Keyed so switching kinds always starts from a fresh, empty picker. */}
+      {kind === 'submissions' ? (
+        <SubmissionsImport key="submissions" eventSlug={eventSlug} />
+      ) : (
+        <SuggestionsImport key="suggestions" eventSlug={eventSlug} />
+      )}
     </div>
   );
 }

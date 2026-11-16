@@ -22,62 +22,69 @@ function formatReactorNames(names: string[]): string {
 // current user.
 export function CommentReactions({
   reactions,
+  disabled = false,
   onToggle,
 }: {
   reactions: CommentReaction[];
+  disabled?: boolean; // read-only: existing reactions still show, but can't be toggled
   onToggle: (emoji: string) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {reactions.map((reaction) => {
-        const pill = (
-          <Button
-            key={reaction.emoji}
-            type="button"
-            variant="outline"
-            size="xs"
-            aria-pressed={reaction.reactedByMe}
-            className={cn(
-              reaction.reactedByMe &&
-                'border-primary bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/25',
-            )}
-            onClick={() => onToggle(reaction.emoji)}
-          >
-            <span>{reaction.emoji}</span>
-            {reaction.count > 0 && <span>{reaction.count}</span>}
-          </Button>
-        );
+      {reactions
+        .filter((reaction) => !disabled || reaction.count > 0)
+        .map((reaction) => {
+          const pill = (
+            <Button
+              key={reaction.emoji}
+              type="button"
+              variant="outline"
+              size="xs"
+              aria-pressed={reaction.reactedByMe}
+              disabled={disabled}
+              className={cn(
+                reaction.reactedByMe &&
+                  'border-primary bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/25',
+              )}
+              onClick={() => onToggle(reaction.emoji)}
+            >
+              <span>{reaction.emoji}</span>
+              {reaction.count > 0 && <span>{reaction.count}</span>}
+            </Button>
+          );
 
-        if (reaction.reactedBy.length === 0) return pill;
+          if (reaction.reactedBy.length === 0) return pill;
 
-        return (
-          <Tooltip key={reaction.emoji}>
-            <TooltipTrigger asChild>{pill}</TooltipTrigger>
-            <TooltipContent>
-              {formatReactorNames(reaction.reactedBy)} reacted with {reaction.emoji}
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
-          <Button type="button" variant="outline" size="icon-xs" aria-label="Add reaction">
-            <Plus />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0">
-          <EmojiPicker
-            width={320}
-            height={380}
-            onEmojiClick={(data: EmojiClickData) => {
-              onToggle(data.emoji);
-              setPickerOpen(false);
-            }}
-          />
-        </PopoverContent>
-      </Popover>
+          return (
+            <Tooltip key={reaction.emoji}>
+              <TooltipTrigger asChild>{pill}</TooltipTrigger>
+              <TooltipContent>
+                {formatReactorNames(reaction.reactedBy)} reacted with {reaction.emoji}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      {!disabled && (
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="outline" size="icon-xs" aria-label="Add reaction">
+              <Plus />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <EmojiPicker
+              width={320}
+              height={380}
+              onEmojiClick={(data: EmojiClickData) => {
+                onToggle(data.emoji);
+                setPickerOpen(false);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 }

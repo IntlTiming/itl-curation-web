@@ -1,6 +1,8 @@
 // Shared column metadata for the Reviews table and its column-visibility settings dialog -
 // kept separate from both so neither has to import the other.
 
+import { sanitizeOrder, withDefaults } from '@/lib/column-settings';
+
 export type ReviewsColumnKey =
   | 'rowNumber'
   | 'addEdit'
@@ -40,40 +42,15 @@ export const REVIEWS_COLUMN_ORDER: ReviewsColumnKey[] = [
   'lastActivity',
 ];
 
-// Reconciles a persisted column order against the current canonical key set: drops unknown/
-// duplicate keys (e.g. a column renamed or removed in a later release) and inserts any keys
-// missing from the stored value (a column added since the user last saved an order) at their
-// canonical position, relative to whichever neighboring canonical columns the user already
-// has - not always appended at the end - so e.g. `#` (canonically first) lands at the front
-// for an existing user's saved order, not after their last column. Without this, a stale
-// localStorage value could silently hide a newly added column from the table entirely
-// (nothing would ever render it, since rendering iterates the stored order, not the canonical
-// one).
+// See lib/column-settings.ts for why both of these exist.
 export function sanitizeColumnOrder(order: ReviewsColumnKey[]): ReviewsColumnKey[] {
-  const known = new Set<ReviewsColumnKey>(REVIEWS_COLUMN_ORDER);
-  const result = order.filter((key, index) => known.has(key) && order.indexOf(key) === index);
-
-  for (const [canonicalIndex, key] of REVIEWS_COLUMN_ORDER.entries()) {
-    if (result.includes(key)) continue;
-    const precedingCanonical = REVIEWS_COLUMN_ORDER.slice(0, canonicalIndex).reverse();
-    const anchor = precedingCanonical.find((candidate) => result.includes(candidate));
-    const insertAt = anchor ? result.indexOf(anchor) + 1 : 0;
-    result.splice(insertAt, 0, key);
-  }
-
-  return result;
+  return sanitizeOrder(order, REVIEWS_COLUMN_ORDER);
 }
 
-// Same idea as sanitizeColumnOrder, but for visibility: useLocalStorageState fully replaces
-// the stored value rather than merging it with the default, so a visibility object saved
-// before a new column existed would have that key simply absent - which reads as falsy
-// (hidden) when the table looks it up, regardless of the column's own intended default.
-// Merging the default in first (so the stored value's own keys still win) keeps a newly
-// added column's default visibility intact for existing users.
 export function sanitizeColumnVisibility(
   visibility: ReviewsColumnVisibility,
 ): ReviewsColumnVisibility {
-  return { ...DEFAULT_REVIEWS_COLUMN_VISIBILITY, ...visibility };
+  return withDefaults(visibility, DEFAULT_REVIEWS_COLUMN_VISIBILITY);
 }
 
 export const REVIEWS_COLUMN_LABELS: Record<ReviewsColumnKey, string> = {

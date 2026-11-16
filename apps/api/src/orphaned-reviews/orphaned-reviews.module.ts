@@ -10,5 +10,6 @@ import { OrphanedReviewsService } from './orphaned-reviews.service.js';
   imports: [PassportModule.register({ session: false }), EventsModule],
   controllers: [OrphanedReviewsController],
   providers: [OrphanedReviewsService],
+  exports: [OrphanedReviewsService], // SuggestionsModule reuses searchCandidates for its link picker
 })
 export class OrphanedReviewsModule {}

@@ -32,7 +32,7 @@ import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-function CandidateRow({
+export function CandidateRow({
   candidate,
   onSelect,
   disabled,

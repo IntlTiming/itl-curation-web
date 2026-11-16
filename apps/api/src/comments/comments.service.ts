@@ -13,7 +13,7 @@ import type { UpdateCommentDto } from './dto/update-comment.dto.js';
 // one-click way to react to a comment before reaching for the full picker.
 export const DEFAULT_REACTION_EMOJI = '👍';
 
-type ReactionRow = Pick<CommentReaction, 'emoji' | 'userId' | 'createdAt'> & {
+export type ReactionRow = Pick<CommentReaction, 'emoji' | 'userId' | 'createdAt'> & {
   user: Pick<User, 'displayName' | 'discordUsername'>;
 };
 
@@ -88,12 +88,12 @@ export function mapCommentReactions(
     });
 }
 
-type CommentAuthor = Pick<
+export type CommentAuthor = Pick<
   User,
   'id' | 'displayName' | 'discordUsername' | 'discordId' | 'discordAvatarHash'
 >;
 
-function mapCommentAuthor(author: CommentAuthor) {
+export function mapCommentAuthor(author: CommentAuthor) {
   return {
     id: author.id,
     displayName: author.displayName ?? author.discordUsername,

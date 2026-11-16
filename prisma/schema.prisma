@@ -42,6 +42,12 @@ model User {
   commentReactions  CommentReaction[]
   disqualifications Disqualification[]
 
+  suggestionsLinked          Suggestion[]                @relation("SuggestionLinkedBy")
+  suggestionReviews          SuggestionReview[]
+  suggestionReviewRevisions  SuggestionReviewRevision[]
+  suggestionComments         SuggestionComment[]
+  suggestionCommentReactions SuggestionCommentReaction[]
+
   @@map("users")
 }
 
@@ -68,6 +74,7 @@ model Event {
   roles                   EventRole[]
   accessRequests          EventAccessRequest[]
   submissions             Submission[]
+  suggestions             Suggestion[]
   basicCheckReasons       BasicCheckReason[]
   disqualificationReasons DisqualificationReason[]
 
@@ -185,6 +192,7 @@ model Submission {
   reviews           Review[]
   comments          Comment[]
   disqualifications Disqualification[]
+  linkedSuggestions Suggestion[]
 
   @@index([eventId])
   // Trigram indexes power the Reviews table's fuzzy text search - see Chart's matching
@@ -328,9 +336,11 @@ model BasicCheckReason {
   eventId     String?
   isActive    Boolean         @default(true)
 
-  event                     Event?                     @relation(fields: [eventId], references: [id])
-  reviewBasicChecks         ReviewBasicCheck[]
-  reviewRevisionBasicChecks ReviewRevisionBasicCheck[]
+  event                               Event?                               @relation(fields: [eventId], references: [id])
+  reviewBasicChecks                   ReviewBasicCheck[]
+  reviewRevisionBasicChecks           ReviewRevisionBasicCheck[]
+  suggestionReviewBasicChecks         SuggestionReviewBasicCheck[]
+  suggestionReviewRevisionBasicChecks SuggestionReviewRevisionBasicCheck[]
 
   @@unique([eventId, code])
   @@map("basic_check_reasons")
@@ -540,4 +550,144 @@ model Disqualification {
   @@index([submissionId, status])
   @@index([chartHash])
   @@map("disqualifications")
+}
+
+// ---------------------------------------------------------------------------
+// Suggestions
+// ---------------------------------------------------------------------------
+
+// One row per entry in the pipeline's suggestions.json - a flat array of community chart
+// suggestions with no file id, no parsed chart and no hash. Keyed by the entry's 1-indexed
+// position in that array (scoped per event, since every event's file restarts at 1). The file is
+// append-only - entries are never removed or reordered - so a position always identifies the
+// same suggestion across imports.
+//
+// Suggestion reviews/comments live in their own tables (not a nullable Review.submissionId):
+// every chart-hash-matched query over Review stays untouched, and linking a suggestion to a
+// submission COPIES its reviews into Review rows rather than referencing them.
+model Suggestion {
+  eventId               String
+  position              Int // 1-indexed position in suggestions.json
+  submittedAt           DateTime // pipeline's "timestamp_utc"
+  submitter             String
+  chart                 String // free text, e.g. "Song SM7 (Pack) by Stepartist" - not a Chart row
+  reason                String
+  link                  String // "" when left blank
+  consentToPublicReview ConsentToPublicReview? // same form values as Submission's; null = blank
+  linkedSubmissionId    String? // set by an admin's "Link to submission" - the suggestion is read-only while set
+  linkedAt              DateTime?
+  linkedById            String?
+  lastReviewAt          DateTime? // MAX(suggestionReview.updatedAt) - same idea as Submission.lastReviewAt
+  lastCommentAt         DateTime? // MAX(suggestionComment.updatedAt) - same idea as Submission.lastCommentAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  event            Event               @relation(fields: [eventId], references: [id])
+  linkedSubmission Submission?         @relation(fields: [linkedSubmissionId], references: [fileId], onDelete: SetNull)
+  linkedBy         User?               @relation("SuggestionLinkedBy", fields: [linkedById], references: [id])
+  reviews          SuggestionReview[]
+  comments         SuggestionComment[]
+
+  @@id([eventId, position])
+  @@index([linkedSubmissionId])
+  @@map("suggestions")
+}
+
+// Mirrors Review's opinion fields and constraints, minus the chart snapshot - a suggestion has
+// no chart to snapshot or go stale against.
+model SuggestionReview {
+  id                 String   @id @default(cuid())
+  eventId            String
+  suggestionPosition Int
+  reviewerId         String
+  rating             Int? // hundredths, same convention as Review.rating
+  passing            Int?
+  scoring            Int?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  suggestion        Suggestion                   @relation(fields: [eventId, suggestionPosition], references: [eventId, position], onDelete: Cascade)
+  reviewer          User                         @relation(fields: [reviewerId], references: [id])
+  basicCheckReasons SuggestionReviewBasicCheck[]
+  revisions         SuggestionReviewRevision[]
+
+  @@unique([eventId, suggestionPosition, reviewerId]) // one live review per reviewer per suggestion
+  @@index([eventId, suggestionPosition])
+  @@index([reviewerId])
+  @@map("suggestion_reviews")
+}
+
+model SuggestionReviewBasicCheck {
+  reviewId           String
+  basicCheckReasonId String
+  note               String?
+
+  review           SuggestionReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  basicCheckReason BasicCheckReason @relation(fields: [basicCheckReasonId], references: [id])
+
+  @@id([reviewId, basicCheckReasonId])
+  @@map("suggestion_review_basic_checks")
+}
+
+// Append-only, same role as ReviewRevision.
+model SuggestionReviewRevision {
+  id             String   @id @default(cuid())
+  reviewId       String
+  rating         Int?
+  passing        Int?
+  scoring        Int?
+  notes          String?
+  supersededAt   DateTime @default(now())
+  supersededById String
+
+  review            SuggestionReview                     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  supersededBy      User                                 @relation(fields: [supersededById], references: [id])
+  basicCheckReasons SuggestionReviewRevisionBasicCheck[]
+
+  @@index([reviewId])
+  @@map("suggestion_review_revisions")
+}
+
+model SuggestionReviewRevisionBasicCheck {
+  reviewRevisionId   String
+  basicCheckReasonId String
+  note               String?
+
+  reviewRevision   SuggestionReviewRevision @relation(fields: [reviewRevisionId], references: [id], onDelete: Cascade)
+  basicCheckReason BasicCheckReason         @relation(fields: [basicCheckReasonId], references: [id])
+
+  @@id([reviewRevisionId, basicCheckReasonId])
+  @@map("suggestion_review_revision_basic_checks")
+}
+
+// Same as Comment, minus chartHash (nothing to go stale against). Not copied on link.
+model SuggestionComment {
+  id                 String   @id @default(cuid())
+  eventId            String
+  suggestionPosition Int
+  authorId           String
+  body               String // markdown
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  suggestion Suggestion                  @relation(fields: [eventId, suggestionPosition], references: [eventId, position], onDelete: Cascade)
+  author     User                        @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  reactions  SuggestionCommentReaction[]
+
+  @@index([eventId, suggestionPosition])
+  @@map("suggestion_comments")
+}
+
+model SuggestionCommentReaction {
+  commentId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  comment SuggestionComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId, emoji])
+  @@map("suggestion_comment_reactions")
 }

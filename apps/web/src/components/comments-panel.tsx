@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { useComments, type SubmissionComment } from '@/hooks/use-comments';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import type { ReviewRevisionEntry } from '@/hooks/use-submission-detail';
+import type { ReviewRevisionFeedEntry } from '@/hooks/use-submission-detail';
 
 type CommentSortOrder = 'newest' | 'oldest';
 
@@ -23,19 +23,22 @@ const COMMENTS_SORT_STORAGE_KEY = 'itl-comments-sort';
 
 type FeedItem =
   | { kind: 'comment'; timestamp: string; comment: SubmissionComment }
-  | { kind: 'revision'; timestamp: string; entry: ReviewRevisionEntry };
+  | { kind: 'revision'; timestamp: string; entry: ReviewRevisionFeedEntry };
 
 export function CommentsPanel({
   slug,
-  fileId,
+  commentsUrl,
   reviewRevisions,
+  readOnly = false,
 }: {
   slug: string;
-  fileId: string;
-  reviewRevisions: ReviewRevisionEntry[];
+  commentsUrl: string; // see use-comments.ts's submissionCommentsUrl / suggestionCommentsUrl
+  reviewRevisions: ReviewRevisionFeedEntry[];
+  // Hides the composer and every edit/delete/react control - for a linked suggestion.
+  readOnly?: boolean;
 }) {
   const auth = useAuth();
-  const result = useComments(slug, fileId);
+  const result = useComments(commentsUrl);
   const currentUserId = auth.status === 'authenticated' ? auth.user.id : null;
   const [sortOrder, setSortOrder] = useLocalStorageState<CommentSortOrder>(
     COMMENTS_SORT_STORAGE_KEY,
@@ -46,8 +49,8 @@ export function CommentsPanel({
   // reviewId and keyed by the following entry's own id - see reviews.service.ts's
   // buildReviewRevisionEntries, which already emits each review's entries in chain order.
   const previousByEntryId = useMemo(() => {
-    const map = new Map<string, ReviewRevisionEntry>();
-    const byReview = new Map<string, ReviewRevisionEntry[]>();
+    const map = new Map<string, ReviewRevisionFeedEntry>();
+    const byReview = new Map<string, ReviewRevisionFeedEntry[]>();
     for (const entry of reviewRevisions) {
       const chain = byReview.get(entry.reviewId) ?? [];
       chain.push(entry);
@@ -87,7 +90,7 @@ export function CommentsPanel({
         Comments{result.status === 'loaded' ? ` (${result.comments.length})` : ''}
       </h2>
 
-      <CommentComposer onSubmit={result.createComment} />
+      {!readOnly && <CommentComposer onSubmit={result.createComment} />}
 
       {result.status === 'loading' && <Loading message="Loading comments…" />}
       {result.status === 'error' && (
@@ -120,6 +123,7 @@ export function CommentsPanel({
                     comment={item.comment}
                     eventSlug={slug}
                     currentUserId={currentUserId}
+                    readOnly={readOnly}
                     onEdit={result.updateComment}
                     onDelete={result.deleteComment}
                     onToggleReaction={result.toggleReaction}

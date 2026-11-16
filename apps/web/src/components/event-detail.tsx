@@ -3,6 +3,7 @@ import {
   Globe,
   Inbox,
   LayoutDashboard,
+  Lightbulb,
   Settings,
   Star,
   Unlink,
@@ -20,6 +21,7 @@ import { ReviewsPanel } from '@/components/reviews-panel';
 import { SettingsPanel } from '@/components/settings-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
 import { SubmittersPanel } from '@/components/submitters-panel';
+import { SuggestionsPanel } from '@/components/suggestions-panel';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -43,6 +45,7 @@ const TAB_LABELS: Record<string, string> = {
   reviews: 'Reviews',
   reviewers: 'Reviewers',
   submissions: 'Submissions',
+  suggestions: 'Suggestions',
   submitters: 'Submitters',
   import: 'Import',
   'orphaned-reviews': 'Orphaned Reviews',
@@ -213,6 +216,10 @@ export function EventDetail() {
           <Inbox />
           Submissions
         </TabsTrigger>
+        <TabsTrigger value="suggestions">
+          <Lightbulb />
+          Suggestions
+        </TabsTrigger>
         <TabsTrigger value="submitters">
           <Users />
           Submitters
@@ -247,6 +254,9 @@ export function EventDetail() {
       </TabsContent>
       <TabsContent value="submissions">
         <SubmissionsPanel eventSlug={event.slug} />
+      </TabsContent>
+      <TabsContent value="suggestions">
+        <SuggestionsPanel eventSlug={event.slug} />
       </TabsContent>
       <TabsContent value="submitters">
         <SubmittersPanel eventSlug={event.slug} />

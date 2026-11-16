@@ -200,19 +200,43 @@ function GradientSelectItem({
   );
 }
 
-export function ReviewModal({
+type ExistingReview = {
+  reviewer: { id: string };
+  rating: number | null;
+  passing: number | null;
+  scoring: number | null;
+  notes: string | null;
+  basicChecks: { id: string; note: string | null }[];
+};
+
+// What the dialog needs from whatever is being reviewed: `reviews` must already be scoped to
+// the thing the PUT at submitUrl upserts (the caller's own review is found among them).
+export type ReviewDialogLoad =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'loaded'; reviews: ExistingReview[] };
+
+// The review form shared by submissions and suggestions - same fields, same constraints. The
+// caller supplies the title, the read-only context block shown above the form, and the upsert
+// endpoint.
+export function ReviewDialog({
   eventSlug,
-  fileId,
+  title,
+  context,
+  load,
+  submitUrl,
   onClose,
   onSaved,
 }: {
   eventSlug: string;
-  fileId: string;
+  title: ReactNode;
+  context: ReactNode;
+  load: ReviewDialogLoad;
+  submitUrl: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const auth = useAuth();
-  const detail = useSubmissionDetail(eventSlug, fileId);
   const reasonsResult = useBasicCheckReasons(eventSlug);
 
   const [form, setForm] = useState<FormState | null>(null);
@@ -230,15 +254,13 @@ export function ReviewModal({
 
   useEffect(() => {
     if (form !== null) return;
-    if (detail.status !== 'loaded' || reasonsResult.status !== 'loaded' || !currentUserId) return;
-    const ownReview = detail.reviews.find(
-      (r) => r.submissionId === fileId && r.reviewer.id === currentUserId,
-    );
+    if (load.status !== 'loaded' || reasonsResult.status !== 'loaded' || !currentUserId) return;
+    const ownReview = load.reviews.find((r) => r.reviewer.id === currentUserId);
     const initial = buildFormState(reasonsResult.reasons, ownReview);
     setForm(initial);
     setInitialForm(initial);
     setIsEditing(ownReview !== undefined);
-  }, [form, detail, reasonsResult, currentUserId, fileId]);
+  }, [form, load, reasonsResult, currentUserId]);
 
   const isDirty = form !== null && initialForm !== null && !formsEqual(form, initialForm);
 
@@ -294,25 +316,22 @@ export function ReviewModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/events/${encodeURIComponent(eventSlug)}/reviews/${encodeURIComponent(fileId)}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rating: form.rating,
-            passing: form.passing,
-            scoring: form.scoring,
-            notes: form.notes.trim() || null,
-            basicChecks: Object.entries(form.basicChecks)
-              .filter(([, v]) => v.checked)
-              .map(([basicCheckReasonId, v]) => ({
-                basicCheckReasonId,
-                note: v.note.trim() || undefined,
-              })),
-          }),
-        },
-      );
+      const res = await fetch(submitUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: form.rating,
+          passing: form.passing,
+          scoring: form.scoring,
+          notes: form.notes.trim() || null,
+          basicChecks: Object.entries(form.basicChecks)
+            .filter(([, v]) => v.checked)
+            .map(([basicCheckReasonId, v]) => ({
+              basicCheckReasonId,
+              note: v.note.trim() || undefined,
+            })),
+        }),
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message ?? 'Failed to save review');
@@ -331,43 +350,18 @@ export function ReviewModal({
       <Dialog open onOpenChange={(next) => !next && requestClose()}>
         <DialogContent className="flex max-h-[85vh] w-full flex-col overflow-y-auto sm:max-w-6xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-1.5">
-              {detail.status === 'loaded'
-                ? `Review: ${detail.submission.chart?.titleRomaji || detail.submission.chart?.title || detail.submission.fileId}`
-                : 'Review'}
-              {detail.status === 'loaded' && detail.submission.chart && (
-                <>
-                  <CmoddabilityIndicator
-                    chart={detail.submission.chart}
-                    cmodPreference={detail.submission.cmodPreference}
-                  />
-                  <PublicConsentIndicator
-                    submitter={detail.submission.submitter}
-                    consentToPublicReview={detail.submission.consentToPublicReview}
-                  />
-                </>
-              )}
-            </DialogTitle>
+            <DialogTitle className="flex items-center gap-1.5">{title}</DialogTitle>
           </DialogHeader>
 
-          {(detail.status === 'loading' || reasonsResult.status === 'loading' || form === null) && (
-            <Loading message="Loading submission…" />
-          )}
-          {detail.status === 'error' && (
-            <p className="text-destructive text-sm">
-              {detail.notFound ? 'Submission not found.' : "Couldn't load submission."}
-            </p>
-          )}
+          {load.status !== 'error' &&
+            (load.status === 'loading' || reasonsResult.status === 'loading' || form === null) && (
+              <Loading message="Loading…" />
+            )}
+          {load.status === 'error' && <p className="text-destructive text-sm">{load.message}</p>}
 
-          {detail.status === 'loaded' && reasonsResult.status === 'loaded' && form && (
+          {load.status === 'loaded' && reasonsResult.status === 'loaded' && form && (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="rounded-md border p-3">
-                <SubmissionDetail
-                  submission={detail.submission}
-                  fileId={detail.submission.fileId}
-                />
-                {detail.submission.chart && <ChartDetail chart={detail.submission.chart} />}
-              </div>
+              <div className="rounded-md border p-3">{context}</div>
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="grid gap-1.5">
@@ -532,5 +526,68 @@ export function ReviewModal({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+export function ReviewModal({
+  eventSlug,
+  fileId,
+  onClose,
+  onSaved,
+}: {
+  eventSlug: string;
+  fileId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const detail = useSubmissionDetail(eventSlug, fileId);
+
+  const load: ReviewDialogLoad =
+    detail.status === 'loaded'
+      ? { status: 'loaded', reviews: detail.reviews.filter((r) => r.submissionId === fileId) }
+      : detail.status === 'error'
+        ? {
+            status: 'error',
+            message: detail.notFound ? 'Submission not found.' : "Couldn't load submission.",
+          }
+        : { status: 'loading' };
+
+  return (
+    <ReviewDialog
+      eventSlug={eventSlug}
+      load={load}
+      submitUrl={`/api/events/${encodeURIComponent(eventSlug)}/reviews/${encodeURIComponent(fileId)}`}
+      onClose={onClose}
+      onSaved={onSaved}
+      title={
+        detail.status === 'loaded' ? (
+          <>
+            {`Review: ${detail.submission.chart?.titleRomaji || detail.submission.chart?.title || detail.submission.fileId}`}
+            {detail.submission.chart && (
+              <>
+                <CmoddabilityIndicator
+                  chart={detail.submission.chart}
+                  cmodPreference={detail.submission.cmodPreference}
+                />
+                <PublicConsentIndicator
+                  submitter={detail.submission.submitter}
+                  consentToPublicReview={detail.submission.consentToPublicReview}
+                />
+              </>
+            )}
+          </>
+        ) : (
+          'Review'
+        )
+      }
+      context={
+        detail.status === 'loaded' && (
+          <>
+            <SubmissionDetail submission={detail.submission} fileId={detail.submission.fileId} />
+            {detail.submission.chart && <ChartDetail chart={detail.submission.chart} />}
+          </>
+        )
+      }
+    />
   );
 }

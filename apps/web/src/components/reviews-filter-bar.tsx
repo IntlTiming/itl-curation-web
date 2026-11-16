@@ -58,7 +58,7 @@ const REVIEW_COUNT_COMMIT_DEBOUNCE_MS = 350;
 // end is open-ended (blank = no limit), since "at least N reviews" or "at most N" alone is the
 // common ask. Local draft state is committed on a debounce, same reasoning as the Meter fields'
 // debouncedCommitMeterRange (arrow keys / wheel ticks commit on every step).
-function ReviewCountRange({
+export function ReviewCountRange({
   min,
   max,
   onCommit,

@@ -22,8 +22,9 @@ const CMOD_MAP: Record<string, CmodPreference> = {
 };
 
 // "" means the form question was left unanswered - the schema comment on
-// Submission.consentToPublicReview documents null as exactly that meaning.
-const CONSENT_MAP: Record<string, ConsentToPublicReview | null> = {
+// Submission.consentToPublicReview documents null as exactly that meaning. Exported since
+// suggestions.json's "consent" column uses the exact same form values.
+export const CONSENT_MAP: Record<string, ConsentToPublicReview | null> = {
   '': null,
   'Yes, I consent to my chart being reviewed in public': 'CONSENTS',
   'No, I do NOT consent to my chart being reviewed in public': 'DOES_NOT_CONSENT',
