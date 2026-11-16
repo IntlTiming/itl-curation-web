@@ -160,7 +160,9 @@ function linkedSubmissionSummary(
     ? {
         fileId: linked.fileId,
         stepartist: linked.stepartist,
-        title: linked.chart ? linked.chart.titleRomaji || linked.chart.title : null,
+        // Both variants - the web picks one per the user's Song Title Display setting.
+        title: linked.chart?.title ?? null,
+        titleRomaji: linked.chart?.titleRomaji ?? null,
       }
     : null;
 }

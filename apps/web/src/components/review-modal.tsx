@@ -48,6 +48,7 @@ import {
   SCORING_GRADIENT,
   type GradientRange,
 } from '@/lib/gradient-color';
+import { DisplayTitle } from '@/components/display-title';
 
 const RATING_OPTIONS = [0, 1, 1.5, 2, 2.5, 3];
 const PASSING_OPTIONS = [1, 2, 3, 4, 5];
@@ -562,7 +563,15 @@ export function ReviewModal({
       title={
         detail.status === 'loaded' ? (
           <>
-            {`Review: ${detail.submission.chart?.titleRomaji || detail.submission.chart?.title || detail.submission.fileId}`}
+            Review:{' '}
+            {detail.submission.chart ? (
+              <DisplayTitle
+                native={detail.submission.chart.title}
+                romaji={detail.submission.chart.titleRomaji}
+              />
+            ) : (
+              detail.submission.fileId
+            )}
             {detail.submission.chart && (
               <>
                 <CmoddabilityIndicator

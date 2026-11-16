@@ -35,6 +35,8 @@ import {
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
 import { shortenTechTag } from '@/lib/tech-tags';
+import { useDisplayTitle } from '@/components/title-display-provider';
+import { DisplayTitle } from '@/components/display-title';
 
 // The only submission-form "focus" value where singleTechTag is meaningful - see
 // submissions-import.mapper.spec.ts's sample entry, which pairs this exact focus string
@@ -48,14 +50,16 @@ function SubmissionSummary({ submission }: { submission: SubmissionDetailSubmiss
   const chart = submission.chart;
   const badgeLabel = chart ? chartBadgeLabel(chart) : chartBadgeLabel(submission);
   const difficulty = chart?.difficulty ?? submission.difficulty;
-  const title = (chart?.titleRomaji || chart?.title) ?? submission.fileId;
-  const artist = chart ? chart.artistRomaji || chart.artist : null;
 
   return (
     <div className="flex flex-col gap-0.5 text-left">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <DifficultyBadge label={badgeLabel} difficulty={difficulty} size="small" />
-        <span className="font-medium">{title}</span>
+        {chart ? (
+          <DisplayTitle native={chart.title} romaji={chart.titleRomaji} className="font-medium" />
+        ) : (
+          <span className="font-medium">{submission.fileId}</span>
+        )}
         <CmoddabilityIndicator
           chart={chart ?? { hasSignificantTimingChanges: false }}
           cmodPreference={submission.cmodPreference}
@@ -64,7 +68,11 @@ function SubmissionSummary({ submission }: { submission: SubmissionDetailSubmiss
           submitter={submission.submitter}
           consentToPublicReview={submission.consentToPublicReview}
         />
-        {artist && <span className="text-muted-foreground">by {artist}</span>}
+        {chart && (chart.artist || chart.artistRomaji) && (
+          <span className="text-muted-foreground">
+            by <DisplayTitle native={chart.artist} romaji={chart.artistRomaji} />
+          </span>
+        )}
         <span className="text-muted-foreground">·</span>
         <span className="text-muted-foreground">{submission.stepartist}</span>
         <span className="text-muted-foreground">·</span>
@@ -230,9 +238,11 @@ export function SubmissionDetailPage() {
   const [submissionOpen, setSubmissionOpen] = useState(false);
   const [chartOpen, setChartOpen] = useState(false);
 
+  const pick = useDisplayTitle();
+  const loadedChart = detail.status === 'loaded' ? detail.submission.chart : null;
   const chartTitle =
     detail.status === 'loaded'
-      ? detail.submission.chart?.titleRomaji || detail.submission.chart?.title || fileId
+      ? (loadedChart && pick(loadedChart.title, loadedChart.titleRomaji)) || fileId
       : null;
   usePageBreadcrumb(
     event.status === 'loaded' && chartTitle

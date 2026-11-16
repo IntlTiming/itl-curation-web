@@ -34,6 +34,7 @@ import {
 } from '@/hooks/use-reviewer-detail';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
+import { DisplayTitle } from '@/components/display-title';
 
 function displayNameOf(reviewer: { displayName: string | null; discordUsername: string }): string {
   return reviewer.displayName ?? reviewer.discordUsername;
@@ -67,7 +68,6 @@ function ReviewerReviewCard({
     difficulty: review.chartDifficulty,
     meter: review.chartMeter,
   });
-  const title = review.chartTitleRomaji || review.chartTitle;
   const reviewerName = displayNameOf(reviewer);
 
   return (
@@ -106,10 +106,14 @@ function ReviewerReviewCard({
           to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(review.submissionId)}`}
           className="flex flex-wrap items-center gap-2 hover:underline"
         >
-          <span className="font-medium">{title}</span>
-          {review.chartArtistRomaji || review.chartArtist ? (
+          <DisplayTitle
+            native={review.chartTitle}
+            romaji={review.chartTitleRomaji}
+            className="font-medium"
+          />
+          {review.chartArtist || review.chartArtistRomaji ? (
             <span className="text-muted-foreground">
-              by {review.chartArtistRomaji || review.chartArtist}
+              by <DisplayTitle native={review.chartArtist} romaji={review.chartArtistRomaji} />
             </span>
           ) : null}
         </Link>
@@ -188,7 +192,6 @@ function ReviewerCommentCard({
         meter: chart.meter,
       })
     : null;
-  const title = chart ? chart.titleRomaji || chart.title : comment.submissionId;
   const reviewerName = displayNameOf(reviewer);
 
   return (
@@ -229,9 +232,15 @@ function ReviewerCommentCard({
           to={`/events/${encodeURIComponent(eventSlug)}/submissions/${encodeURIComponent(comment.submissionId)}`}
           className="flex flex-wrap items-center gap-2 hover:underline"
         >
-          <span className="font-medium">{title}</span>
-          {chart?.artistRomaji || chart?.artist ? (
-            <span className="text-muted-foreground">by {chart.artistRomaji || chart.artist}</span>
+          {chart ? (
+            <DisplayTitle native={chart.title} romaji={chart.titleRomaji} className="font-medium" />
+          ) : (
+            <span className="font-medium">{comment.submissionId}</span>
+          )}
+          {chart && (chart.artist || chart.artistRomaji) ? (
+            <span className="text-muted-foreground">
+              by <DisplayTitle native={chart.artist} romaji={chart.artistRomaji} />
+            </span>
           ) : null}
         </Link>
       </div>

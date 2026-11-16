@@ -10,7 +10,8 @@ export type ConsentToPublicReview = 'CONSENTS' | 'DOES_NOT_CONSENT' | 'NOT_STEPA
 export type LinkedSubmissionSummary = {
   fileId: string;
   stepartist: string;
-  title: string | null;
+  title: string | null; // null when the submission has no chart
+  titleRomaji: string | null; // "" when no translit tag; null when no chart
 };
 
 type SuggestionFields = {

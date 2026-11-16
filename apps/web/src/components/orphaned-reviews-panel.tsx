@@ -29,6 +29,7 @@ import {
 } from '@/hooks/use-orphaned-reviews';
 import { discordAvatarUrl } from '@/lib/discord-avatar';
 import { PASSING_GRADIENT, SCORING_GRADIENT } from '@/lib/gradient-color';
+import { DisplayTitle } from '@/components/display-title';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -41,7 +42,6 @@ export function CandidateRow({
   onSelect: () => void;
   disabled: boolean;
 }) {
-  const title = candidate.chart.titleRomaji || candidate.chart.title;
   const badgeLabel = chartBadgeLabel(candidate.chart);
   return (
     <button
@@ -52,7 +52,11 @@ export function CandidateRow({
     >
       <div className="flex items-center gap-1.5">
         <DifficultyBadge label={badgeLabel} difficulty={candidate.chart.difficulty} size="small" />
-        <span className="min-w-0 truncate font-medium">{title}</span>
+        <DisplayTitle
+          native={candidate.chart.title}
+          romaji={candidate.chart.titleRomaji}
+          className="min-w-0 truncate font-medium"
+        />
         {candidate.sameSubmitter && (
           <Badge variant="secondary" className="shrink-0">
             Same submitter
@@ -274,7 +278,7 @@ function OrphanedReviewGroupCard({
                 onClick={() => stageConfirm({ kind: 'all', target: candidate })}
               >
                 <Link2 />
-                {candidate.chart.titleRomaji || candidate.chart.title}
+                <DisplayTitle native={candidate.chart.title} romaji={candidate.chart.titleRomaji} />
                 {candidate.sameSubmitter && <Badge variant="secondary">Same submitter</Badge>}
               </Button>
             ))}
@@ -306,7 +310,7 @@ function OrphanedReviewGroupCard({
                     size="small"
                   />
                   <span className="text-muted-foreground truncate text-xs">
-                    {review.chart.titleRomaji || review.chart.title}
+                    <DisplayTitle native={review.chart.title} romaji={review.chart.titleRomaji} />
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 pl-8 text-xs">
@@ -382,8 +386,12 @@ function OrphanedReviewGroupCard({
                 : `Every orphaned review on ${group.submission.fileId}`}{' '}
               will be moved to{' '}
               <span className="text-foreground font-medium">
-                {pendingConfirm &&
-                  (pendingConfirm.target.chart.titleRomaji || pendingConfirm.target.chart.title)}
+                {pendingConfirm && (
+                  <DisplayTitle
+                    native={pendingConfirm.target.chart.title}
+                    romaji={pendingConfirm.target.chart.titleRomaji}
+                  />
+                )}
               </span>{' '}
               by {pendingConfirm?.target.stepartist} ({pendingConfirm?.target.fileId}).
             </AlertDialogDescription>

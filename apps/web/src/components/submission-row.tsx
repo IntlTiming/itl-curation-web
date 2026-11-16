@@ -4,6 +4,7 @@ import { CopyButton } from '@/components/copy-button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SubmissionFields } from '@/components/submission-detail';
+import { DisplayTitle } from '@/components/display-title';
 
 // Shared between SubmissionsPanel (plain listing) and ImportPanel (diff preview) - both
 // render the same submitted-row shape (timestamp, chart cell, file ID, status), so the
@@ -48,8 +49,6 @@ export function ChartCell({
   textClassName?: string;
 }) {
   if (chart) {
-    const title = chart.titleRomaji || chart.title;
-    const subtitle = chart.subtitleRomaji || chart.subtitle;
     return (
       <span className="inline-flex flex-wrap items-center gap-1.5">
         <DifficultyBadge
@@ -58,8 +57,13 @@ export function ChartCell({
           size="small"
         />
         <span className={textClassName}>
-          {pack}/{title}
-          {subtitle ? ` ${subtitle}` : ''}
+          {pack}/<DisplayTitle native={chart.title} romaji={chart.titleRomaji} />
+          {(chart.subtitle || chart.subtitleRomaji) && (
+            <>
+              {' '}
+              <DisplayTitle native={chart.subtitle} romaji={chart.subtitleRomaji} />
+            </>
+          )}
         </span>
       </span>
     );
