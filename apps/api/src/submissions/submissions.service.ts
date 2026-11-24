@@ -14,6 +14,7 @@ import {
   type RawReviewStats,
 } from '../reviews/reviews.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { mapSelectionUser, type SelectionLogEntry } from '../selections/selections.service.js';
 
 type SubmissionWithRelations = Submission & {
   chart: Chart | null;
@@ -342,6 +343,32 @@ export class SubmissionsService {
         )
       : null;
 
-    return { submission, reviews, reviewRevisions, stats };
+    const [selection, selectionLogRows] = await Promise.all([
+      this.prisma.submissionSelection.findUnique({
+        where: { submissionId: fileId },
+        include: { selectedBy: true },
+      }),
+      this.prisma.submissionSelectionLog.findMany({
+        where: { submissionId: fileId },
+        include: { user: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    return {
+      submission,
+      reviews,
+      reviewRevisions,
+      stats,
+      selection: selection
+        ? { selectedAt: selection.selectedAt, selectedBy: mapSelectionUser(selection.selectedBy) }
+        : null,
+      selectionLog: selectionLogRows.map((entry): SelectionLogEntry => ({
+        id: entry.id,
+        action: entry.action,
+        user: mapSelectionUser(entry.user),
+        timestamp: entry.createdAt,
+      })),
+    };
   }
 }

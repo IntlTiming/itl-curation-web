@@ -71,6 +71,12 @@ export class ReviewsQueryDto {
   @IsBoolean()
   publiclyReviewableOnly: boolean = false;
 
+  // Submission-scoped (by fileId), like the selection itself - see SubmissionSelection.
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  selectedOnly: boolean = false;
+
   // TechTag.code values (e.g. "BR", "XO") from a comma-separated query param, e.g.
   // ?techTags=BR,XO - deliberately unvalidated against the known 20 codes, same as `search`'s
   // unvalidated free text; an unknown code just matches nothing.

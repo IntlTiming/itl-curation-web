@@ -164,13 +164,14 @@ export function ReviewsFilterBar({
   // Deliberately a one-time lazy init, not a synced effect - it won't re-open on its own if the
   // user manually collapses it after turning the filter on.
   const [additionalFiltersOpen, setAdditionalFiltersOpen] = useState(
-    () => filters.publiclyReviewableOnly || filters.unreviewedByMeOnly,
+    () => filters.publiclyReviewableOnly || filters.unreviewedByMeOnly || filters.selectedOnly,
   );
   const searchId = useId();
   const singleId = useId();
   const doubleId = useId();
   const unreviewedByMeId = useId();
   const publiclyReviewableId = useId();
+  const selectedOnlyId = useId();
 
   useEffect(() => {
     if (searchInput === filters.search) return;
@@ -513,6 +514,14 @@ export function ReviewsFilterBar({
               }
             />
             <Label htmlFor={unreviewedByMeId}>Only unreviewed by me</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={selectedOnlyId}
+              checked={filters.selectedOnly}
+              onCheckedChange={(checked) => onFiltersChange({ selectedOnly: checked === true })}
+            />
+            <Label htmlFor={selectedOnlyId}>Only selected</Label>
           </div>
         </CollapsibleContent>
       </Collapsible>

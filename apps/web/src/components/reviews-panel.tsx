@@ -1,5 +1,5 @@
 import { Dices } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Loading } from '@/components/loading';
 import { ReviewModal } from '@/components/review-modal';
@@ -24,6 +24,7 @@ import { useReviews, type ReviewsRow } from '@/hooks/use-reviews';
 import { useReviewsFilters, type ReviewsFilters } from '@/hooks/use-reviews-filters';
 import { DEFAULT_SORT, useReviewsSort } from '@/hooks/use-reviews-sort';
 import { useScrollRestoration } from '@/hooks/use-scroll-restoration';
+import { setSubmissionSelected } from '@/lib/selections';
 
 // "Showing x of y singles/doubles submissions" when any filter besides Playstyle narrows the
 // result; simplified to "Showing y singles/doubles submissions" when nothing else does, since
@@ -38,6 +39,7 @@ function summaryText(filters: ReviewsFilters, visibleCount: number, totalCount: 
     filters.maxReviewCount === null &&
     !filters.unreviewedByMeOnly &&
     !filters.publiclyReviewableOnly &&
+    !filters.selectedOnly &&
     filters.techTags.length === 0 &&
     filters.focus.length === 0;
   return isUnfiltered
@@ -89,6 +91,22 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
   const { filters, setFilters, resetFilters } = useReviewsFilters(eventSlug);
   const { sort, setSort } = useReviewsSort(eventSlug);
   const result = useReviews(eventSlug, filters);
+  const { setRowSelected } = result;
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+
+  // Optimistic: flips the row immediately, reverts (and says why) if the server rejects it.
+  // useCallback keeps its identity stable so ReviewsTable's memoized rows don't all re-render.
+  const handleToggleSelected = useCallback(
+    (fileId: string, selected: boolean) => {
+      setSelectionError(null);
+      setRowSelected(fileId, selected);
+      setSubmissionSelected(eventSlug, fileId, selected).catch((err: unknown) => {
+        setRowSelected(fileId, !selected);
+        setSelectionError(err instanceof Error ? err.message : "Couldn't update the selection");
+      });
+    },
+    [eventSlug, setRowSelected],
+  );
   useScrollRestoration(`reviews:${eventSlug}`, result.status === 'loaded');
   const [activeReviewFileId, setActiveReviewFileId] = useState<string | null>(null);
   const [columnVisibility, setColumnVisibility] = useLocalStorageState(
@@ -163,6 +181,7 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           {summaryText(filters, result.rows.length, result.totalCount)}
         </p>
       )}
+      {selectionError && <p className="text-destructive text-sm">{selectionError}</p>}
       {result.status === 'loaded' && result.rows.length === 0 && (
         <p className="text-muted-foreground text-sm">No submissions match these filters.</p>
       )}
@@ -173,6 +192,7 @@ export function ReviewsPanel({ eventSlug }: { eventSlug: string }) {
           columnVisibility={sanitizedColumnVisibility}
           eventSlug={eventSlug}
           onEditReview={setActiveReviewFileId}
+          onToggleSelected={handleToggleSelected}
           sort={sort}
           onSortChange={setSort}
           selectedTechTags={filters.techTags}

@@ -15,6 +15,7 @@ import { OrphanedReviewsModule } from './orphaned-reviews/orphaned-reviews.modul
 import { OverviewModule } from './overview/overview.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
+import { SelectionsModule } from './selections/selections.module.js';
 import { SubmissionsModule } from './submissions/submissions.module.js';
 import { SubmittersModule } from './submitters/submitters.module.js';
 import { SuggestionsModule } from './suggestions/suggestions.module.js';
@@ -47,6 +48,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
     AccessRequestsModule,
     OrphanedReviewsModule,
     SuggestionsModule,
+    SelectionsModule,
   ],
   controllers: [HealthController],
 })
