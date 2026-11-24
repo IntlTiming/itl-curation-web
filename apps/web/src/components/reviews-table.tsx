@@ -1,7 +1,7 @@
 import { cn } from 'cn';
 import { format } from 'date-fns';
 import { Ban, ChevronDown, ChevronUp, GlobeOff, SquareCheck, SquarePen } from 'lucide-react';
-import { useMemo, type ReactNode } from 'react';
+import { memo, useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { chartBadgeLabel, DifficultyBadge } from '@/components/chart-detail';
 import { GradientBadge } from '@/components/gradient-badge';
@@ -12,6 +12,7 @@ import {
 } from '@/components/reviews-columns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -80,6 +81,7 @@ const NUMERIC_SORT_COLUMNS = new Set<SortColumn>([
 const NARROW_COLUMNS = new Set<ReviewsColumnKey>([
   'rowNumber',
   'addEdit',
+  'selected',
   'meter',
   'reviewCount',
   'avgRating',
@@ -400,12 +402,84 @@ export function SortableHeader<C extends string>({
   );
 }
 
+// One table row, memoized: toggling a row's Selected checkbox patches just that row object in
+// useReviews (every other row keeps its identity), so only the changed row re-renders instead of
+// all ~1300 rows - each with badges and tooltips - on every click. Every prop must stay
+// referentially stable for this to work: callers pass memoized/stable callbacks and arrays.
+const ReviewsTableRow = memo(function ReviewsTableRow({
+  row,
+  index,
+  visibleColumns,
+  eventSlug,
+  onEditReview,
+  onToggleSelected,
+  selectedTechTags,
+}: {
+  row: ReviewsRow;
+  index: number;
+  visibleColumns: ReviewsColumnKey[];
+  eventSlug: string;
+  onEditReview: (fileId: string) => void;
+  onToggleSelected: (fileId: string, selected: boolean) => void;
+  selectedTechTags: string[];
+}) {
+  // rowNumber is the only renderer that needs the row's position rather than its own data.
+  const cellRenderers: Record<ReviewsColumnKey, () => ReactNode> = {
+    rowNumber: () => index + 1,
+    addEdit: () => (
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={row.hasOwnReview ? 'Edit your review' : 'Add a review'}
+        onClick={() => onEditReview(row.fileId)}
+      >
+        {row.hasOwnReview ? <SquareCheck /> : <SquarePen />}
+      </Button>
+    ),
+    selected: () => (
+      <div className="flex justify-center">
+        <Checkbox
+          checked={row.isSelected}
+          aria-label={row.isSelected ? 'Unselect this chart' : 'Select this chart'}
+          onCheckedChange={(checked) => onToggleSelected(row.fileId, checked === true)}
+        />
+      </div>
+    ),
+    meter: () => (
+      <DifficultyBadge label={chartBadgeLabel(row.chart)} difficulty={row.chart.difficulty} />
+    ),
+    title: () => <TitleCell row={row} eventSlug={eventSlug} />,
+    pack: () => row.pack,
+    stepartist: () => row.stepartist,
+    submitter: () => row.submitter,
+    techTags: () => <TechTagsCell techTags={row.techTags} selectedTechTags={selectedTechTags} />,
+    reviewCount: () => row.reviewCount,
+    avgRating: () => <RatingCell value={row.avgRating} />,
+    minRating: () => <RatingCell value={row.minRating} />,
+    maxRating: () => <RatingCell value={row.maxRating} />,
+    stdevRating: () => <StdevCell value={row.stdevRating} />,
+    commentCount: () => row.commentCount,
+    lastActivity: () => (row.lastActivity ? format(new Date(row.lastActivity), 'PP p') : '—'),
+  };
+
+  return (
+    <TableRow className={rowToneClassName(row)}>
+      {visibleColumns.map((key) => (
+        <TableCell key={key} className={columnClassName(key)}>
+          {cellRenderers[key]()}
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+});
+
 export function ReviewsTable({
   rows,
   columnOrder,
   columnVisibility,
   eventSlug,
   onEditReview,
+  onToggleSelected,
   sort,
   onSortChange,
   selectedTechTags,
@@ -415,6 +489,7 @@ export function ReviewsTable({
   columnVisibility: ReviewsColumnVisibility;
   eventSlug: string;
   onEditReview: (fileId: string) => void;
+  onToggleSelected: (fileId: string, selected: boolean) => void;
   // Lifted to the caller (rather than owned here) so it can be persisted the same way the
   // filters are - see use-reviews-sort.ts.
   sort: SortState;
@@ -436,42 +511,15 @@ export function ReviewsTable({
     }
   }
 
-  // rowNumber is the only renderer that needs the row's position rather than its own data -
-  // every other renderer ignores the second argument.
-  const cellRenderers: Record<ReviewsColumnKey, (row: ReviewsRow, index: number) => ReactNode> = {
-    rowNumber: (_row, index) => index + 1,
-    addEdit: (row) => (
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={row.hasOwnReview ? 'Edit your review' : 'Add a review'}
-        onClick={() => onEditReview(row.fileId)}
-      >
-        {row.hasOwnReview ? <SquareCheck /> : <SquarePen />}
-      </Button>
-    ),
-    meter: (row) => (
-      <DifficultyBadge label={chartBadgeLabel(row.chart)} difficulty={row.chart.difficulty} />
-    ),
-    title: (row) => <TitleCell row={row} eventSlug={eventSlug} />,
-    pack: (row) => row.pack,
-    stepartist: (row) => row.stepartist,
-    submitter: (row) => row.submitter,
-    techTags: (row) => <TechTagsCell techTags={row.techTags} selectedTechTags={selectedTechTags} />,
-    reviewCount: (row) => row.reviewCount,
-    avgRating: (row) => <RatingCell value={row.avgRating} />,
-    minRating: (row) => <RatingCell value={row.minRating} />,
-    maxRating: (row) => <RatingCell value={row.maxRating} />,
-    stdevRating: (row) => <StdevCell value={row.stdevRating} />,
-    commentCount: (row) => row.commentCount,
-    lastActivity: (row) => (row.lastActivity ? format(new Date(row.lastActivity), 'PP p') : '—'),
-  };
-
   // Add/Edit has no meaningful header text (it's just the icon-button column) - every other
   // header reuses the same label shown in the column-visibility settings dialog.
   const headerLabels: Record<ReviewsColumnKey, string> = { ...REVIEWS_COLUMN_LABELS, addEdit: '' };
 
-  const visibleColumns = columnOrder.filter((key) => columnVisibility[key]);
+  // Memoized so its identity is stable across renders - ReviewsTableRow's memo compares it.
+  const visibleColumns = useMemo(
+    () => columnOrder.filter((key) => columnVisibility[key]),
+    [columnOrder, columnVisibility],
+  );
 
   return (
     <Table>
@@ -495,13 +543,16 @@ export function ReviewsTable({
       </TableHeader>
       <TableBody>
         {sortedRows.map((row, index) => (
-          <TableRow key={row.fileId} className={rowToneClassName(row)}>
-            {visibleColumns.map((key) => (
-              <TableCell key={key} className={columnClassName(key)}>
-                {cellRenderers[key](row, index)}
-              </TableCell>
-            ))}
-          </TableRow>
+          <ReviewsTableRow
+            key={row.fileId}
+            row={row}
+            index={index}
+            visibleColumns={visibleColumns}
+            eventSlug={eventSlug}
+            onEditReview={onEditReview}
+            onToggleSelected={onToggleSelected}
+            selectedTechTags={selectedTechTags}
+          />
         ))}
       </TableBody>
     </Table>

@@ -9,6 +9,7 @@ import type {
 } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { IS_SELECTED_FRAGMENT } from '../selections/selections.service.js';
 import type { ReviewsQueryDto } from './dto/reviews-query.dto.js';
 import type { UpsertReviewDto } from './dto/upsert-review.dto.js';
 
@@ -82,6 +83,7 @@ type RawReviewRow = {
   hasOwnChartReview: boolean;
   commentCount: bigint;
   lastActivity: Date | null;
+  isSelected: boolean;
   // TechTag.label values (not codes - shortened to codes for display client-side, same as
   // submission-detail's techTags field) the submission has claimed, alphabetical for a stable
   // display order.
@@ -140,6 +142,9 @@ export type ReviewsRow = {
   // the Random!! button, so a duplicate of a chart you already reviewed isn't offered as
   // unreviewed. A superset of hasOwnReview.
   hasOwnChartReview: boolean;
+  // Whether this exact submission (by fileId, not chart hash - see SubmissionSelection's schema
+  // comment) is in the selected set.
+  isSelected: boolean;
   // Both of the following are submissionId-scoped, NOT chart-hash matched like every field
   // above them - deliberately different from reviewCount/avgRating/etc. See Comment's schema
   // comment and the file header's chart-identity note for why comments never cross-match.
@@ -201,6 +206,7 @@ export function mapRawReviewRow(row: RawReviewRow, basicChecks: ReviewsBasicChec
     stdevRating: row.stdevRating == null ? null : row.stdevRating / 100,
     hasOwnReview: row.hasOwnReview,
     hasOwnChartReview: row.hasOwnChartReview,
+    isSelected: row.isSelected,
     commentCount: Number(row.commentCount),
     lastActivity: row.lastActivity,
     basicChecks,
@@ -429,6 +435,10 @@ export function buildBaseWhereFragments(
     fragments.push(Prisma.sql`s."consentToPublicReview" = 'CONSENTS'::"ConsentToPublicReview"`);
   }
 
+  if (query.selectedOnly) {
+    fragments.push(IS_SELECTED_FRAGMENT);
+  }
+
   if (query.techTags.length > 0) {
     fragments.push(Prisma.sql`
       EXISTS (
@@ -576,6 +586,7 @@ export class ReviewsService {
             WHERE r3."reviewerId" = ${userId}
               AND (r3."submissionId" = s."fileId" OR r3."chartHash" = c.hash)
           )                                AS "hasOwnChartReview",
+          ${IS_SELECTED_FRAGMENT}          AS "isSelected",
           (SELECT COUNT(*) FROM comments cm WHERE cm."submissionId" = s."fileId")
                                            AS "commentCount",
           GREATEST(s."lastReviewAt", s."lastCommentAt") AS "lastActivity",

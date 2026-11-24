@@ -6,6 +6,7 @@ import { sanitizeOrder, withDefaults } from '@/lib/column-settings';
 export type ReviewsColumnKey =
   | 'rowNumber'
   | 'addEdit'
+  | 'selected'
   | 'meter'
   | 'title'
   | 'pack'
@@ -27,6 +28,7 @@ export type ReviewsColumnVisibility = Record<ReviewsColumnKey, boolean>;
 export const REVIEWS_COLUMN_ORDER: ReviewsColumnKey[] = [
   'rowNumber',
   'addEdit',
+  'selected',
   'meter',
   'title',
   'pack',
@@ -56,6 +58,7 @@ export function sanitizeColumnVisibility(
 export const REVIEWS_COLUMN_LABELS: Record<ReviewsColumnKey, string> = {
   rowNumber: '#',
   addEdit: 'Add/Edit',
+  selected: 'Selected',
   meter: 'Meter',
   title: 'Title',
   pack: 'Pack',
@@ -78,6 +81,7 @@ export const FORCED_VISIBLE_REVIEWS_COLUMNS: ReviewsColumnKey[] = ['meter', 'tit
 export const DEFAULT_REVIEWS_COLUMN_VISIBILITY: ReviewsColumnVisibility = {
   rowNumber: true,
   addEdit: true,
+  selected: true,
   meter: true,
   title: true,
   pack: true,

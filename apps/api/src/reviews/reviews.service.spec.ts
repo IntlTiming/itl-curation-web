@@ -15,6 +15,7 @@ const BASE_QUERY: ReviewsQueryDto = {
   playstyle: Playstyle.SINGLE,
   unreviewedByMeOnly: false,
   publiclyReviewableOnly: false,
+  selectedOnly: false,
   techTags: [],
   focus: [],
 };
@@ -61,6 +62,20 @@ describe('buildBaseWhereFragments', () => {
 
     expect(consentFragment).toBeDefined();
     expect(consentFragment).toContain('CONSENTS');
+    expect(fragments).toHaveLength(4);
+  });
+
+  it('adds a submission_selections EXISTS fragment when selectedOnly is true', () => {
+    const fragments = buildBaseWhereFragments('event-1', 'user-1', {
+      ...BASE_QUERY,
+      selectedOnly: true,
+    });
+    const selectedFragment = fragmentTexts(fragments).find((t) =>
+      t.includes('submission_selections'),
+    );
+
+    expect(selectedFragment).toBeDefined();
+    expect(selectedFragment).toContain('s."fileId"');
     expect(fragments).toHaveLength(4);
   });
 
@@ -238,6 +253,7 @@ describe('mapRawReviewRow', () => {
         hasOwnChartReview: true,
         commentCount: 2n,
         lastActivity: new Date('2026-02-01T00:00:00Z'),
+        isSelected: true,
       },
       [{ id: 'bcr-1', code: 'BEAT_0', label: 'Beat 0', level: 'WARNING' }],
     );
@@ -271,6 +287,7 @@ describe('mapRawReviewRow', () => {
       stdevRating: 0.25,
       hasOwnReview: true,
       hasOwnChartReview: true,
+      isSelected: true,
       commentCount: 2,
       lastActivity: new Date('2026-02-01T00:00:00Z'),
       basicChecks: [{ id: 'bcr-1', code: 'BEAT_0', label: 'Beat 0', level: 'WARNING' }],
@@ -313,6 +330,7 @@ describe('mapRawReviewRow', () => {
         hasOwnChartReview: true,
         commentCount: 0n,
         lastActivity: null,
+        isSelected: false,
       },
       [],
     );
@@ -361,6 +379,7 @@ describe('mapRawReviewRow', () => {
       hasOwnChartReview: false,
       commentCount: 0n,
       lastActivity: null,
+      isSelected: false,
     };
 
     const row = mapRawReviewRow(base, [

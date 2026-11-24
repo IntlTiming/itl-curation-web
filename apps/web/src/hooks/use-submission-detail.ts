@@ -89,11 +89,29 @@ export type ReviewRevisionFeedEntry = Omit<ReviewRevisionEntry, 'submissionId' |
   chartHash?: string;
 };
 
+export type SelectionUser = {
+  id: string;
+  displayName: string;
+  discordId: string;
+  discordAvatarHash: string | null;
+};
+
+// One select/unselect from the SubmissionSelectionLog audit trail.
+export type SelectionLogEntry = {
+  id: string;
+  action: 'SELECTED' | 'UNSELECTED';
+  user: SelectionUser;
+  timestamp: string;
+};
+
 export type SubmissionDetailResponse = {
   submission: SubmissionDetailSubmission;
   reviews: SubmissionDetailReview[];
   reviewRevisions: ReviewRevisionEntry[];
   stats: SubmissionDetailStats | null;
+  // null = not selected. Keyed by fileId, not chart hash - see SubmissionSelection.
+  selection: { selectedAt: string; selectedBy: SelectionUser } | null;
+  selectionLog: SelectionLogEntry[];
 };
 
 export type SubmissionDetailState =

@@ -81,6 +81,17 @@
   --chart-6: #008300;
   --chart-7: #4a3aa7;
   --chart-8: #e34948;
+  /* Derived-focus palette for the Selections tab - a fixed domain encoding (not the categorical
+     --chart-N slots): gray = Other, blue = Multi Tech, greens = Single Tech (light Other ->
+     dark XO), reds = No Tech. Mirrors the curators' "target tech distribution" spreadsheet. */
+  --focus-other: #9e9e9e;
+  --focus-multi: #4a7bd4;
+  --focus-st-other: #b9d8a8;
+  --focus-st-br: #93c47d;
+  --focus-st-fs: #6aa84f;
+  --focus-st-xo: #38761d;
+  --focus-nt-other: #e06150;
+  --focus-nt: #b8281c;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -119,6 +130,14 @@
   --chart-6: #008300;
   --chart-7: #9085e9;
   --chart-8: #e66767;
+  --focus-other: #8a8a8a;
+  --focus-multi: #5b8ee6;
+  --focus-st-other: #a7cf94;
+  --focus-st-br: #85bd6c;
+  --focus-st-fs: #5f9f45;
+  --focus-st-xo: #3f8424;
+  --focus-nt-other: #e8705f;
+  --focus-nt: #c93a2d;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

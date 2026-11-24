@@ -48,6 +48,9 @@ model User {
   suggestionComments         SuggestionComment[]
   suggestionCommentReactions SuggestionCommentReaction[]
 
+  selections    SubmissionSelection[]
+  selectionLogs SubmissionSelectionLog[]
+
   @@map("users")
 }
 
@@ -193,6 +196,8 @@ model Submission {
   comments          Comment[]
   disqualifications Disqualification[]
   linkedSuggestions Suggestion[]
+  selection         SubmissionSelection?
+  selectionLogs     SubmissionSelectionLog[]
 
   @@index([eventId])
   // Trigram indexes power the Reviews table's fuzzy text search - see Chart's matching
@@ -530,6 +535,49 @@ enum DisqualificationStatus {
 // A DQ is chart-level, not per-reviewer: in the 2026 sheet one reviewer's DQ
 // propagated into every other reviewer's row by formula. Here it's stored once
 // and every review of that submission can surface it.
+// ---------------------------------------------------------------------------
+// Selections
+// ---------------------------------------------------------------------------
+
+// Whether a submission has been picked for the final set - a curator decision, kept off the
+// import-owned Submission row (whose fields mirror submissions.json and are diffed by the
+// import) alongside the other curator-opinion tables. Keyed by fileId, deliberately NOT by chart
+// hash: a selection survives a chart re-parse and never cross-matches a duplicate submission of
+// the same chart. Row present = selected; unselecting deletes the row. Any event member can
+// toggle it - every change is also appended to SubmissionSelectionLog for auditability.
+model SubmissionSelection {
+  submissionId String   @id
+  selectedById String
+  selectedAt   DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  selectedBy User       @relation(fields: [selectedById], references: [id])
+
+  @@map("submission_selections")
+}
+
+enum SelectionAction {
+  SELECTED
+  UNSELECTED
+}
+
+// Append-only audit trail of every select/unselect, shown in the submission detail page's
+// activity feed. Written in the same transaction as SubmissionSelection; a no-op toggle (already
+// in the requested state) writes nothing.
+model SubmissionSelectionLog {
+  id           String          @id @default(cuid())
+  submissionId String
+  userId       String
+  action       SelectionAction
+  createdAt    DateTime        @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [fileId], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([submissionId, createdAt])
+  @@map("submission_selection_logs")
+}
+
 model Disqualification {
   id               String                 @id @default(cuid())
   submissionId     String

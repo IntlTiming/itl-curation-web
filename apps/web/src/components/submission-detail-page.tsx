@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ArrowLeft, ChevronDown, RefreshCw, SquareCheck, SquarePen } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { BasicCheckList } from '@/components/basic-check-list';
 import { chartBadgeLabel, ChartDetail, DifficultyBadge } from '@/components/chart-detail';
@@ -21,14 +21,18 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/use-auth';
 import { usePageBreadcrumb } from '@/hooks/use-breadcrumb';
 import { useEvent } from '@/hooks/use-event';
 import { usePageTitle } from '@/hooks/use-page-title';
+import { setSubmissionSelected } from '@/lib/selections';
 import {
   useSubmissionDetail,
+  type SubmissionDetailResponse,
   type SubmissionDetailReview,
   type SubmissionDetailSubmission,
 } from '@/hooks/use-submission-detail';
@@ -229,6 +233,67 @@ export function ReviewCard({ review, eventSlug }: { review: ReviewCardReview; ev
   );
 }
 
+// The submission's own Selected checkbox - same PUT as the Reviews table's Selected column.
+// Optimistic: the tick flips immediately, then the detail is refetched so the audit-log entry
+// just written shows up in the activity feed. The optimistic value is tied to the `selection` it
+// was made against, so it's dropped automatically once the refetch delivers a new one.
+function SelectedToggle({
+  eventSlug,
+  fileId,
+  selection,
+  onChanged,
+}: {
+  eventSlug: string;
+  fileId: string;
+  selection: SubmissionDetailResponse['selection'];
+  onChanged: () => void;
+}) {
+  const id = useId();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [optimistic, setOptimistic] = useState<{
+    selected: boolean;
+    basis: SubmissionDetailResponse['selection'];
+  } | null>(null);
+  const checked =
+    optimistic && optimistic.basis === selection ? optimistic.selected : selection !== null;
+
+  async function toggle(selected: boolean) {
+    setOptimistic({ selected, basis: selection });
+    setPending(true);
+    setError(null);
+    try {
+      await setSubmissionSelected(eventSlug, fileId, selected);
+      onChanged();
+    } catch (err) {
+      setOptimistic(null);
+      setError(err instanceof Error ? err.message : "Couldn't update the selection");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={id}
+          checked={checked}
+          disabled={pending}
+          onCheckedChange={(checked) => toggle(checked === true)}
+        />
+        <Label htmlFor={id}>Selected</Label>
+        {checked && selection && (
+          <span className="text-muted-foreground text-xs">
+            by {selection.selectedBy.displayName}, {format(new Date(selection.selectedAt), 'PP')}
+          </span>
+        )}
+      </div>
+      {error && <p className="text-destructive text-xs">{error}</p>}
+    </div>
+  );
+}
+
 export function SubmissionDetailPage() {
   const { slug, fileId } = useParams<{ slug: string; fileId: string }>();
   const auth = useAuth();
@@ -278,7 +343,7 @@ export function SubmissionDetailPage() {
     );
   }
 
-  const { submission, reviews, reviewRevisions, stats } = detail;
+  const { submission, reviews, reviewRevisions, stats, selection, selectionLog } = detail;
   const ownReview =
     auth.status === 'authenticated'
       ? reviews.find((r) => r.submissionId === fileId && r.reviewer.id === auth.user.id)
@@ -337,12 +402,22 @@ export function SubmissionDetailPage() {
                 <StdevCell value={stats?.stdevRating ?? null} />
               </span>
             </div>
-            {submission.chart && (
-              <Button onClick={() => setReviewModalOpen(true)}>
-                {ownReview ? <SquareCheck /> : <SquarePen />}
-                {ownReview ? 'Edit your review' : 'Add a review'}
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-4">
+              {slug && fileId && (
+                <SelectedToggle
+                  eventSlug={slug}
+                  fileId={fileId}
+                  selection={selection}
+                  onChanged={detail.refetch}
+                />
+              )}
+              {submission.chart && (
+                <Button onClick={() => setReviewModalOpen(true)}>
+                  {ownReview ? <SquareCheck /> : <SquarePen />}
+                  {ownReview ? 'Edit your review' : 'Add a review'}
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -361,6 +436,8 @@ export function SubmissionDetailPage() {
               slug={slug}
               commentsUrl={submissionCommentsUrl(slug, fileId)}
               reviewRevisions={reviewRevisions}
+              selectionLog={selectionLog}
+              showFeedFilters
             />
           )}
         </div>

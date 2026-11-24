@@ -11,6 +11,8 @@ export type ReviewsFilters = {
   maxReviewCount: number | null;
   unreviewedByMeOnly: boolean;
   publiclyReviewableOnly: boolean;
+  // Only submissions in the selected set (by fileId - see SubmissionSelection).
+  selectedOnly: boolean;
   // TechTag.code values (e.g. "BR", "XO") - a submission needs at least one to show up at all;
   // exact-set matches are ranked first server-side (see reviews.service.ts's
   // buildTechTagRankFragment), same as search relevance.
@@ -29,6 +31,7 @@ const DEFAULT_FILTERS: ReviewsFilters = {
   maxReviewCount: null,
   unreviewedByMeOnly: false,
   publiclyReviewableOnly: false,
+  selectedOnly: false,
   techTags: [],
   focus: [],
 };
@@ -46,6 +49,7 @@ export const FILTER_PARAM_KEYS = [
   'maxReviewCount',
   'unreviewedByMeOnly',
   'publiclyReviewableOnly',
+  'selectedOnly',
   'techTags',
   'focus',
 ] as const;
@@ -73,6 +77,7 @@ function parseFromParams(params: URLSearchParams): ReviewsFilters {
       : DEFAULT_FILTERS.maxReviewCount,
     unreviewedByMeOnly: params.get('unreviewedByMeOnly') === 'true',
     publiclyReviewableOnly: params.get('publiclyReviewableOnly') === 'true',
+    selectedOnly: params.get('selectedOnly') === 'true',
     techTags: params.has('techTags')
       ? (params.get('techTags') ?? '')
           .split(',')
@@ -122,6 +127,7 @@ function writeToParams(filters: ReviewsFilters, params: URLSearchParams): URLSea
   );
   setOrDelete('unreviewedByMeOnly', 'true', !filters.unreviewedByMeOnly);
   setOrDelete('publiclyReviewableOnly', 'true', !filters.publiclyReviewableOnly);
+  setOrDelete('selectedOnly', 'true', !filters.selectedOnly);
   setOrDelete('techTags', filters.techTags.join(','), filters.techTags.length === 0);
   setOrDelete('focus', filters.focus.join(','), filters.focus.length === 0);
   return next;

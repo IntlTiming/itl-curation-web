@@ -4,6 +4,7 @@ import {
   Inbox,
   LayoutDashboard,
   Lightbulb,
+  ListChecks,
   Settings,
   Star,
   Unlink,
@@ -18,6 +19,7 @@ import { BrokenReviewsPanel } from '@/components/broken-reviews-panel';
 import { OverviewPanel } from '@/components/overview-panel';
 import { ReviewersPanel } from '@/components/reviewers-panel';
 import { ReviewsPanel } from '@/components/reviews-panel';
+import { SelectionsPanel } from '@/components/selections-panel';
 import { SettingsPanel } from '@/components/settings-panel';
 import { SubmissionsPanel } from '@/components/submissions-panel';
 import { SubmittersPanel } from '@/components/submitters-panel';
@@ -43,6 +45,7 @@ const DEFAULT_TAB = 'overview';
 const TAB_LABELS: Record<string, string> = {
   overview: 'Overview',
   reviews: 'Reviews',
+  selections: 'Selections',
   reviewers: 'Reviewers',
   submissions: 'Submissions',
   suggestions: 'Suggestions',
@@ -208,32 +211,36 @@ export function EventDetail() {
           <ClipboardCheck />
           Reviews
         </TabsTrigger>
-        <TabsTrigger value="reviewers">
-          <Star />
-          Reviewers
+        <TabsTrigger value="suggestions">
+          <Lightbulb />
+          Suggestions
         </TabsTrigger>
         <TabsTrigger value="submissions">
           <Inbox />
           Submissions
         </TabsTrigger>
-        <TabsTrigger value="suggestions">
-          <Lightbulb />
-          Suggestions
-        </TabsTrigger>
         <TabsTrigger value="submitters">
           <Users />
           Submitters
         </TabsTrigger>
-        {event.isEventAdmin && (
-          <TabsTrigger value="import">
-            <Upload />
-            Import
-          </TabsTrigger>
-        )}
+        <TabsTrigger value="selections">
+          <ListChecks />
+          Selections
+        </TabsTrigger>
+        <TabsTrigger value="reviewers">
+          <Star />
+          Reviewers
+        </TabsTrigger>
         {event.isEventAdmin && (
           <TabsTrigger value="broken-reviews">
             <Unlink />
             Broken Reviews
+          </TabsTrigger>
+        )}
+        {event.isEventAdmin && (
+          <TabsTrigger value="import">
+            <Upload />
+            Import
           </TabsTrigger>
         )}
         {event.isEventAdmin && (
@@ -249,26 +256,29 @@ export function EventDetail() {
       <TabsContent value="reviews">
         <ReviewsPanel eventSlug={event.slug} />
       </TabsContent>
-      <TabsContent value="reviewers">
-        <ReviewersPanel eventSlug={event.slug} />
+      <TabsContent value="suggestions">
+        <SuggestionsPanel eventSlug={event.slug} />
       </TabsContent>
       <TabsContent value="submissions">
         <SubmissionsPanel eventSlug={event.slug} />
       </TabsContent>
-      <TabsContent value="suggestions">
-        <SuggestionsPanel eventSlug={event.slug} />
-      </TabsContent>
       <TabsContent value="submitters">
         <SubmittersPanel eventSlug={event.slug} />
       </TabsContent>
-      {event.isEventAdmin && (
-        <TabsContent value="import">
-          <ImportPanel eventSlug={event.slug} />
-        </TabsContent>
-      )}
+      <TabsContent value="selections">
+        <SelectionsPanel eventSlug={event.slug} />
+      </TabsContent>
+      <TabsContent value="reviewers">
+        <ReviewersPanel eventSlug={event.slug} />
+      </TabsContent>
       {event.isEventAdmin && (
         <TabsContent value="broken-reviews">
           <BrokenReviewsPanel eventSlug={event.slug} />
+        </TabsContent>
+      )}
+      {event.isEventAdmin && (
+        <TabsContent value="import">
+          <ImportPanel eventSlug={event.slug} />
         </TabsContent>
       )}
       {event.isEventAdmin && (

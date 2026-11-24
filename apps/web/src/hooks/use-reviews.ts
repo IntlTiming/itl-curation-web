@@ -48,6 +48,8 @@ export type ReviewsRow = {
   // submission with the same chart hash. Drives the Random!! button (and, server-side, the
   // "Only unreviewed by me" filter) so duplicates of an already-reviewed chart aren't offered.
   hasOwnChartReview: boolean;
+  // Whether this exact submission (by fileId, not chart hash) is in the selected set.
+  isSelected: boolean;
   // Both submissionId-scoped, NOT chart-hash matched like every field above - see the
   // Comment model's schema comment for why comments never cross-match submissions.
   commentCount: number;
@@ -93,6 +95,7 @@ function buildQueryString(filters: ReviewsFilters): string {
   if (filters.maxReviewCount != null) params.set('maxReviewCount', String(filters.maxReviewCount));
   if (filters.unreviewedByMeOnly) params.set('unreviewedByMeOnly', 'true');
   if (filters.publiclyReviewableOnly) params.set('publiclyReviewableOnly', 'true');
+  if (filters.selectedOnly) params.set('selectedOnly', 'true');
   if (filters.techTags.length > 0) params.set('techTags', filters.techTags.join(','));
   if (filters.focus.length > 0) params.set('focus', filters.focus.join(','));
   return params.toString();
@@ -120,5 +123,19 @@ export function useReviews(slug: string, filters: ReviewsFilters) {
     refetch();
   }, [refetch]);
 
-  return { ...state, refetch };
+  // Patches one row's isSelected in place, without a refetch - used for the Selected column's
+  // optimistic toggle, so with "Only selected" on, unticking a row doesn't make it vanish out
+  // from under the cursor mid-click. The next filter change/refetch reconciles with the server.
+  const setRowSelected = useCallback((fileId: string, isSelected: boolean) => {
+    setState((prev) =>
+      prev.status === 'loaded'
+        ? {
+            ...prev,
+            rows: prev.rows.map((row) => (row.fileId === fileId ? { ...row, isSelected } : row)),
+          }
+        : prev,
+    );
+  }, []);
+
+  return { ...state, refetch, setRowSelected };
 }
